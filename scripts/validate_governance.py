@@ -40,7 +40,8 @@ def main():
         require(path.is_file() and not path.is_symlink(), f'Missing/unsafe artifact: {name}')
         if not path.is_file() or path.is_symlink():
             continue
-        text = path.read_text()
+        with path.open(encoding='utf-8', newline='') as stream:
+            text = stream.read()
         require(bool(text.strip()) and text.endswith('\n'), f'Empty/missing final newline: {name}')
         require('\r' not in text, f'Non-LF text: {name}')
         require(all(line == line.rstrip() for line in text.splitlines()), f'Trailing whitespace: {name}')
@@ -92,9 +93,13 @@ def main():
     require('secrets.' not in json.dumps(workflow), 'Secrets must not be referenced')
 
     tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
-    sensitive = re.compile(r'(^|/)(\.env($|\.)|secrets/|credentials/)|\.(p12|pfx|p8|key|mobileprovision)$')
+    sensitive_directory = re.compile(r'(^|/)(secrets|credentials)/')
+    sensitive = re.compile(r'(^|/)\.env($|\.)|\.(p12|pfx|p8|key|mobileprovision|provisionprofile)$')
     for name in filter(None, tracked):
-        if name.endswith('.example'):
+        if sensitive_directory.search(name):
+            require(False, 'Potential sensitive tracked filename (redacted)')
+            continue
+        if re.fullmatch(r'\.env(?:\..*)?\.example', Path(name).name):
             continue
         require(not sensitive.search(name), 'Potential sensitive tracked filename (redacted)')
 
