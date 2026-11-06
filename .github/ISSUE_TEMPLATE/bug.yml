@@ -1,0 +1,89 @@
+{
+  "name": "Bug report",
+  "description": "Report a non-security bug with safe evidence.",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "Do not include credentials, personal data or exploitable vulnerability details. Use SECURITY.md for security reporting. For unknown or not-applicable fields, explain why."
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "expected",
+      "attributes": {
+        "label": "Expected behavior",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "actual",
+      "attributes": {
+        "label": "Actual behavior",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "reproduction",
+      "attributes": {
+        "label": "Safe reproduction steps",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "environment",
+      "attributes": {
+        "label": "Environment",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "impact",
+      "attributes": {
+        "label": "Impact",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "logs",
+      "attributes": {
+        "label": "Relevant redacted logs",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "regression",
+      "attributes": {
+        "label": "Regression-test expectations",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    }
+  ]
+}

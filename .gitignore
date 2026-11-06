@@ -1,0 +1,63 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+
+# Node and web outputs (keep lockfiles)
+node_modules/
+dist/
+.next/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# Rust / Tauri generated outputs
+target/
+/src-tauri/gen/
+
+# Native intermediates
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Local environment and credentials; examples must contain dummy values only
+.env
+.env.*
+!.env.example
+!.env.*.example
+/secrets/
+/credentials/
+*.p12
+*.pfx
+*.p8
+*.key
+*.mobileprovision
+*.provisionprofile
+
+# Test, browser and cache outputs
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.cache/
+ms-playwright/
+.local-browsers/
+
+# Local data; do not ignore SQL source or migrations
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Distribution artifacts
+*.dmg
+*.app/
+*.dSYM/

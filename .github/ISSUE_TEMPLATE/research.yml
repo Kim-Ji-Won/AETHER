@@ -1,0 +1,89 @@
+{
+  "name": "Research / Spike",
+  "description": "Define a bounded feasibility investigation.",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "Do not include credentials, personal data or exploitable vulnerability details. Use SECURITY.md for security reporting. For unknown or not-applicable fields, explain why."
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "question",
+      "attributes": {
+        "label": "Question or hypothesis",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "options",
+      "attributes": {
+        "label": "Options to investigate",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "evidence",
+      "attributes": {
+        "label": "Evidence required",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "boundaries",
+      "attributes": {
+        "label": "Experiment boundaries",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "criteria",
+      "attributes": {
+        "label": "Success/failure criteria",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "artifacts",
+      "attributes": {
+        "label": "Artifacts and findings",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "adr",
+      "attributes": {
+        "label": "Follow-up ADR decision",
+        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+      },
+      "validations": {
+        "required": true
+      }
+    }
+  ]
+}

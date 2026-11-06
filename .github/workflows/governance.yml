@@ -1,0 +1,53 @@
+{
+  "name": "Governance",
+  "on": {
+    "pull_request": {
+      "branches": [
+        "main"
+      ],
+      "types": [
+        "opened",
+        "synchronize",
+        "reopened",
+        "edited",
+        "ready_for_review"
+      ]
+    },
+    "push": {
+      "branches": [
+        "main"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "governance-${{ github.workflow }}-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "governance": {
+      "name": "governance",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 5,
+      "steps": [
+        {
+          "name": "Checkout",
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Validate governance",
+          "run": "python3 scripts/validate_governance.py"
+        },
+        {
+          "name": "Check whitespace",
+          "run": "git show --format= --check HEAD"
+        }
+      ]
+    }
+  }
+}

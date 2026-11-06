@@ -1,0 +1,25 @@
+{
+  "name": "Security reporting route (no vulnerability details)",
+  "description": "Request a private reporting route; do not disclose a vulnerability here.",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "STOP: this form creates a PUBLIC Issue. Private reporting was disabled at bootstrap and remains pending. Read https://github.com/Kim-Ji-Won/AETHER/security/policy and check the Security tab for a private reporting option. If available, leave this form and report privately. Otherwise this form is ONLY for requesting a private route; include no exploit details, affected data, logs or credentials."
+      }
+    },
+    {
+      "type": "checkboxes",
+      "id": "route_request",
+      "attributes": {
+        "label": "Private route request only",
+        "options": [
+          {
+            "label": "I request a private reporting channel and have included no vulnerability details or private data.",
+            "required": true
+          }
+        ]
+      }
+    }
+  ]
+}
