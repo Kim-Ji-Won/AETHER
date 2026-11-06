@@ -15,7 +15,7 @@ pnpm-debug.log*
 
 # Rust / Tauri generated outputs
 target/
-/src-tauri/gen/
+**/src-tauri/gen/
 
 # Native intermediates
 .build/

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AETHER",
+  "version": "0.1.0",
+  "identifier": "com.aether.firstwindow",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "AETHER", "width": 900, "height": 760, "minWidth": 400, "minHeight": 680, "center": true, "backgroundColor": "#07101e" }],
+    "security": {
+      "capabilities": [],
+      "csp": "default-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": { "active": true, "targets": ["app"], "icon": ["icons/icon.png"] }
+}
