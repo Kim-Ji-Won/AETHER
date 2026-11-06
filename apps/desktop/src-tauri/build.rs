@@ -9,7 +9,10 @@ fn xcrun_output(args: &[&str]) -> String {
 fn main() {
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(
-            tauri_build::AppManifest::new().commands(&["get_macos_major_version"]),
+            tauri_build::AppManifest::new().commands(&[
+                "get_macos_major_version",
+                "get_accessibility_trust_status",
+            ]),
         ),
     ).expect("build Tauri app manifest");
     println!("cargo:rerun-if-changed=swift/NativeBridge.swift");
@@ -40,5 +43,6 @@ fn main() {
     println!("cargo:rustc-link-search=native={sdk}/usr/lib/swift");
     println!("cargo:rustc-link-lib=static=aether_native");
     println!("cargo:rustc-link-lib=framework=Foundation");
+    println!("cargo:rustc-link-lib=framework=ApplicationServices");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
