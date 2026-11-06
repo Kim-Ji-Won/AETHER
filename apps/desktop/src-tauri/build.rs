@@ -7,7 +7,11 @@ fn xcrun_output(args: &[&str]) -> String {
 }
 
 fn main() {
-    tauri_build::build();
+    tauri_build::try_build(
+        tauri_build::Attributes::new().app_manifest(
+            tauri_build::AppManifest::new().commands(&["get_macos_major_version"]),
+        ),
+    ).expect("build Tauri app manifest");
     println!("cargo:rerun-if-changed=swift/NativeBridge.swift");
     for name in ["DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"] {
         println!("cargo:rerun-if-env-changed={name}");
