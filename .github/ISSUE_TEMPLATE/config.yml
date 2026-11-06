@@ -1,0 +1,10 @@
+{
+  "blank_issues_enabled": false,
+  "contact_links": [
+    {
+      "name": "보안 신고 정책 · Security Policy",
+      "url": "https://github.com/Kim-Ji-Won/AETHER/security/policy",
+      "about": "비공개 신고 경로를 확인하세요. 악용 가능한 취약점은 공개하지 않습니다."
+    }
+  ]
+}

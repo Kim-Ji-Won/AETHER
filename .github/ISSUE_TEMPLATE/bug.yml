@@ -1,0 +1,89 @@
+{
+  "name": "버그 신고 · Bug",
+  "description": "보안 취약점이 아닌 버그를 안전한 증거와 함께 신고합니다.",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "자격 증명·개인정보·악용 가능한 취약점 상세를 포함하지 마세요. 보안 신고는 SECURITY.md를 따릅니다. 미확인 또는 해당 없는 항목도 이유를 적어주세요."
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "expected",
+      "attributes": {
+        "label": "기대 동작 · Expected",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "actual",
+      "attributes": {
+        "label": "실제 동작 · Actual",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "reproduction",
+      "attributes": {
+        "label": "안전한 재현 절차 · Reproduction",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "environment",
+      "attributes": {
+        "label": "환경 · Environment",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "impact",
+      "attributes": {
+        "label": "영향 · Impact",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "logs",
+      "attributes": {
+        "label": "비식별화한 로그 · Redacted Logs",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "regression",
+      "attributes": {
+        "label": "회귀 테스트 기대사항 · Regression",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
+      },
+      "validations": {
+        "required": true
+      }
+    }
+  ]
+}
