@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-counter-approval",
+  "description": "로컬 main 창의 실험 카운터 조회와 네이티브 일회성 승인 요청만 허용합니다.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["allow-request-counter-increment", "allow-get-experiment-counter"]
+}

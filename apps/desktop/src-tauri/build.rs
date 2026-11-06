@@ -12,6 +12,8 @@ fn main() {
             tauri_build::AppManifest::new().commands(&[
                 "get_macos_major_version",
                 "get_accessibility_trust_status",
+                "request_counter_increment",
+                "get_experiment_counter",
             ]),
         ),
     ).expect("build Tauri app manifest");
@@ -43,6 +45,7 @@ fn main() {
     println!("cargo:rustc-link-search=native={sdk}/usr/lib/swift");
     println!("cargo:rustc-link-lib=static=aether_native");
     println!("cargo:rustc-link-lib=framework=Foundation");
+    println!("cargo:rustc-link-lib=framework=AppKit");
     println!("cargo:rustc-link-lib=framework=ApplicationServices");
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
