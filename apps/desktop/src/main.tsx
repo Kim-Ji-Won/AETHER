@@ -1,4 +1,4 @@
-import { StrictMode, useState } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import './styles.css';
@@ -9,6 +9,26 @@ function App() {
   const [checking, setChecking] = useState(false);
   const [versionFailed, setVersionFailed] = useState(false);
   const [trustStatus, setTrustStatus] = useState<'unchecked' | 'checking' | 'trusted' | 'untrusted' | 'failed'>('unchecked');
+
+  const [counter, setCounter] = useState<number | null>(null);
+  const [counterPending, setCounterPending] = useState(false);
+  const [counterFailed, setCounterFailed] = useState(false);
+
+  useEffect(() => {
+    invoke<number>('get_experiment_counter').then(setCounter).catch(() => setCounterFailed(true));
+  }, []);
+
+  async function requestIncrement() {
+    setCounterPending(true);
+    setCounterFailed(false);
+    try {
+      setCounter(await invoke<number>('request_counter_increment'));
+    } catch {
+      setCounterFailed(true);
+    } finally {
+      setCounterPending(false);
+    }
+  }
 
   async function checkAccessibilityTrust() {
     setTrustStatus('checking');
@@ -63,6 +83,15 @@ function App() {
           {lit ? '점등 완료' : '코어 점등'}
         </button>
         <div className="native-checks">
+          <div className="native-version">
+            <button type="button" onClick={requestIncrement} disabled={counterPending}>
+              실험 카운터 +1 요청
+            </button>
+            <p role="status" aria-live="polite">
+              실험 카운터: {counter ?? '확인 전'}
+              {counterPending ? ' · 승인 대기 중' : counterFailed ? ' · 요청을 처리하지 못했어요' : ''}
+            </p>
+          </div>
           <div className="native-version">
             <button type="button" onClick={checkVersion} disabled={checking}>
               {checking ? '확인 중…' : 'macOS 버전 확인'}
