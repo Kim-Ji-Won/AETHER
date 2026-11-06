@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-accessibility-status",
+  "description": "로컬 main 창에서 현재 AETHER 프로세스의 손쉬운 사용 신뢰 상태 조회만 허용합니다.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["allow-get-accessibility-trust-status"]
+}

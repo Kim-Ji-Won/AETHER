@@ -49,6 +49,7 @@ button:hover:not(:disabled) { background: #1c4c54; border-color: #81c7bf; }
 button:focus-visible { outline: 2px solid #a2ffe4; outline-offset: 5px; }
 button:disabled { color: #b3dfd5; cursor: default; background: #163b40; border-color: #436d68; }
 .native-version { margin-top: 16px; display: flex; flex-direction: column; align-items: center; }
+.native-checks { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 24px; }
 .native-version button { padding: 8px 16px; font-size: 12px; background: transparent; }
 .native-version p { min-height: 18px; margin: 8px 0 0; font-size: 12px; color: #b3dfd5; }
 footer { border-top: 1px solid #253341; margin: 0 38px; padding: 20px 0 24px; display: flex; justify-content: space-between; color: #8194a5; font-size: 10px; letter-spacing: .1em; }
