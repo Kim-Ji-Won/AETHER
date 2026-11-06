@@ -1,19 +1,19 @@
 {
-  "name": "Research / Spike",
-  "description": "Define a bounded feasibility investigation.",
+  "name": "연구·실험 · Research / Spike",
+  "description": "검증 질문과 경계가 명확한 실험을 제안합니다.",
   "body": [
     {
       "type": "markdown",
       "attributes": {
-        "value": "Do not include credentials, personal data or exploitable vulnerability details. Use SECURITY.md for security reporting. For unknown or not-applicable fields, explain why."
+        "value": "자격 증명·개인정보·악용 가능한 취약점 상세를 포함하지 마세요. 보안 신고는 SECURITY.md를 따릅니다. 미확인 또는 해당 없는 항목도 이유를 적어주세요."
       }
     },
     {
       "type": "textarea",
       "id": "question",
       "attributes": {
-        "label": "Question or hypothesis",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "질문·가설 · Hypothesis",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true
@@ -23,8 +23,8 @@
       "type": "textarea",
       "id": "options",
       "attributes": {
-        "label": "Options to investigate",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "검토할 선택지 · Options",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true
@@ -34,8 +34,8 @@
       "type": "textarea",
       "id": "evidence",
       "attributes": {
-        "label": "Evidence required",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "필요 증거 · Evidence",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true
@@ -45,8 +45,8 @@
       "type": "textarea",
       "id": "boundaries",
       "attributes": {
-        "label": "Experiment boundaries",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "실험 범위·제약 · Boundaries",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true
@@ -56,8 +56,8 @@
       "type": "textarea",
       "id": "criteria",
       "attributes": {
-        "label": "Success/failure criteria",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "성공·실패 조건 · Criteria",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true
@@ -67,8 +67,8 @@
       "type": "textarea",
       "id": "artifacts",
       "attributes": {
-        "label": "Artifacts and findings",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "산출물·조사 결과 · Findings",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true
@@ -78,8 +78,8 @@
       "type": "textarea",
       "id": "adr",
       "attributes": {
-        "label": "Follow-up ADR decision",
-        "description": "State the requirement or evidence; mark unknown/not applicable with a reason."
+        "label": "후속 ADR 결정 · Decision",
+        "description": "요구사항이나 증거를 작성하고, 미확인·해당 없음은 이유를 설명하세요."
       },
       "validations": {
         "required": true

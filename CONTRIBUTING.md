@@ -1,22 +1,24 @@
-# Contributing to AETHER
+# 기여 가이드 · Contributing
 
-AETHER is in P0 feasibility. There is no implemented app, supported product version or approved production architecture. Read [AGENTS](AGENTS.md), [SECURITY](SECURITY.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+AETHER는 P0 실현 가능성 검토 단계입니다. 구현된 앱·지원 제품 버전·승인된 production 아키텍처는 없습니다. [AGENTS](AGENTS.md), [SECURITY](SECURITY.md), [Code of Conduct](CODE_OF_CONDUCT.md)를 먼저 읽어주세요.
 
-## Development lifecycle
+## 개발 절차 · Development Lifecycle
 
-1. Open or identify an Issue describing the problem, value, scope, exclusions, acceptance criteria, dependencies, security impact and test plan. Obtain scope approval before implementation. Research needs a hypothesis, bounded experiment and evidence. A security incident follows the private reporting policy instead of public reproduction details.
-2. Inspect the current repository, main SHA and local changes. Create a short-lived Issue branch from the reviewed baseline; preserve unrelated work. Follow [branch and commit conventions](docs/engineering/git-workflow.md).
-3. Record architectural proposals under [decisions](docs/decisions/README.md); no accepted decision without sufficient evidence and explicit approval.
-4. Implement focused changes. Do not install or upgrade dependencies outside the approved scope. Follow [coding standards](docs/engineering/coding-standards.md).
-5. Run relevant [validation](docs/engineering/testing-policy.md), inspect the diff and sensitive data exposure, and distinguish real, mocked and manual evidence.
-6. Open a Draft PR linked to the Issue. State implemented changes, exclusions, security impact, actual validation, deferred checks and recovery. Use `Refs #N` for partial work and `Closes #N` only when merging completes the Issue.
-7. Review the latest head SHA. Resolve critical findings, satisfy acceptance criteria and checks, and obtain explicit user merge authorization. A solo maintainer may review using a recorded checklist; do not manufacture independent approval.
-8. After an authorized squash merge, verify main's resulting SHA and synchronization. Branch deletion is a separate authorized/settings-controlled action; never delete unmerged work. Do not begin the next task automatically.
+1. 문제·사용자 가치·범위·제외 범위·완료 조건·의존성·보안 영향·테스트 계획을 담은 실제 Issue를 확인하거나 만듭니다. 구현 전에 범위 승인을 받습니다. 연구는 가설·실험 경계·필요 증거를 정의합니다. 보안 사고의 상세는 공개 Issue 대신 보안 신고 정책을 따릅니다.
+2. 저장소·main SHA·로컬 변경을 확인하고 검토된 기준점에서 짧은 Issue 브랜치를 만듭니다. 무관한 작업을 보존하고 [브랜치·커밋 규칙](docs/engineering/git-workflow.md)을 따릅니다.
+3. 아키텍처 제안은 [ADR 기준](docs/decisions/README.md)에 따라 기록합니다. 충분한 증거와 명시적 승인 없이 ACCEPTED로 표시하지 않습니다.
+4. 작은 범위로 구현하고 승인 밖의 의존성을 설치·업그레이드하지 않습니다. [코딩 기준](docs/engineering/coding-standards.md)을 적용합니다.
+5. 관련 [검증](docs/engineering/testing-policy.md), diff, 민감정보 노출을 확인합니다. 실제·mock·수동 검증을 구분합니다.
+6. 연결된 Draft PR에 구현·제외 범위·보안 영향·실제 검증·보류 검사·복구 방안을 작성합니다. 부분 작업은 `Refs #N`, 병합으로 Issue 전체가 완료될 때만 `Closes #N`을 사용합니다.
+7. 최신 head SHA를 검토하고 중요한 지적과 완료 조건·검사를 해결한 뒤 명시적 병합 승인을 받습니다. 1인 저장소는 기록된 체크리스트로 검토할 수 있으나 독립 승인을 꾸며내지 않습니다.
+8. 승인된 squash merge 후 main SHA와 로컬·원격 동기화를 확인합니다. 브랜치 삭제는 별도 승인 또는 승인된 설정에 따라 수행하며 미병합 작업을 삭제하지 않습니다. 다음 작업을 자동 시작하지 않습니다.
 
-## Emergency exception
+## 긴급 대응 예외 · Emergency
 
-For a confirmed incident, use a private security advisory or an approved private incident record first. If unavailable, obtain explicit maintainer authorization for a narrowly scoped emergency record and record a sanitized Issue when safe. Keep branch/PR review and explicit merge authorization; this exception does not permit direct main pushes or disclosure of exploit details.
+확인된 사고는 비공개 advisory나 승인된 비공개 사고 기록부터 만듭니다. 해당 경로가 없으면 좁은 긴급 대응 범위에 대해 관리자의 명시적 승인을 받고, 안전해진 후 비식별화한 Issue를 기록합니다. 이 예외도 브랜치·PR 검토와 병합 승인을 면제하지 않으며 main 직접 푸시나 exploit 상세 공개를 허용하지 않습니다.
 
-## Review and licensing
+## 리뷰·언어·라이선스
 
-Review scope, correctness, failure behavior, privacy, dependency provenance, test evidence and rollback. UI changes need safe screenshots/recordings when relevant. Policy exceptions require explicit documented acceptance, not a silent skipped check. License selection is pending; discuss substantial external contributions before submitting code. Release requirements are in [release policy](docs/engineering/release-policy.md).
+정확성, 실패 동작, 개인정보, 의존성 출처, 테스트 증거와 복구를 검토합니다. UI 변경은 필요한 경우 비식별화한 화면 증거를 첨부합니다. 검사 예외는 조용히 생략하지 말고 명시적으로 승인받습니다.
+
+본문은 한국어 중심, 기술 용어·명령·식별자는 영어로 유지합니다. 제목은 필요한 경우 한영 병기하며 중복 번역은 피합니다. 라이선스 선정 전 상당한 외부 코드 기여는 관리자와 먼저 논의합니다. 배포는 [release policy](docs/engineering/release-policy.md)를 따릅니다.

@@ -1,20 +1,20 @@
-# Security policy
+# 보안 정책 · Security Policy
 
-## Reporting route: pending
+## 비공개 신고 경로 · Pending
 
-Private Vulnerability Reporting was observed disabled during P0-G on 2026-11-06. There is no configured private security contact or staffed response team, and no response-time promise. The maintainer should enable GitHub Private Vulnerability Reporting and verify the reporting flow before updating this policy.
+2026-11-06 P0-G 점검에서 GitHub Private Vulnerability Reporting은 비활성 상태였습니다. 설정된 비공개 보안 연락처나 전담 대응팀은 없으며 응답 시간을 보장하지 않습니다. 관리자는 기능을 활성화하고 신고 흐름을 검증한 후 이 정책을 갱신해야 합니다.
 
-Check the repository [Security page](https://github.com/Kim-Ji-Won/AETHER/security). If a private “Report a vulnerability” option is available, use it. If it is unavailable, do not submit exploit details, credentials, logs or personal data publicly. A public Issue may only request establishment of a private reporting channel, without describing the vulnerability. Wait for a verified private route to exchange evidence. GitHub platform abuse should use GitHub's own reporting controls.
+저장소 [Security 페이지](https://github.com/Kim-Ji-Won/AETHER/security)에 비공개 “Report a vulnerability”가 제공되면 사용하세요. 해당 경로가 없으면 exploit 상세·자격 증명·로그·개인정보를 공개하지 마세요. 공개 Issue에는 **취약점을 설명하지 않고 비공개 신고 채널 개설만 요청**할 수 있습니다. 증거 교환은 확인된 비공개 경로를 기다립니다. GitHub 플랫폼 악용은 GitHub의 신고 기능을 이용합니다.
 
-Do not publicly disclose exploitable vulnerabilities before coordinating remediation. No released versions are currently supported: no application has shipped.
+대응을 조율하기 전에 악용 가능한 취약점을 공개하지 않습니다. 아직 앱이 출시되지 않았으므로 지원하는 배포 버전도 없습니다.
 
-## Required design boundaries
+## 향후 구현의 필수 경계 · Design Requirements
 
-These are requirements for future implementation, not claims of implemented controls.
+아래는 구현된 보안 기능의 설명이 아니라 향후 충족해야 할 요구사항입니다.
 
-- Never commit or log API keys, signing material, credentials, personal files, raw screen captures or private paths. Ignore rules are not a secret scanner. If a secret is exposed, revoke/rotate it using an approved incident process; history cleanup requires separate authorization.
-- Prefer local storage and explicit retention/deletion choices. Sending local content to an AI provider is a separate consent boundary. Include derived summaries, vectors, caches and backups in deletion policy. SQLite does not automatically provide encryption at rest.
-- macOS permission grants are not per-action consent. Request microphone, screen capture and Accessibility only for explicit tasks, handle denial/revocation, and visibly stop monitoring. Signing/notarization does not bypass permissions.
-- The host must validate tool arguments and enforce default deny, least privilege, per-tool authorization and revocation. Bind approval to the actual task, arguments and target; revalidate before execution and record a redacted audit trail. A model's approval field never authorizes an action.
-- Isolate untrusted web/file content from policy. Authenticate local IPC, prevent approval replay and duplicate effects, restrict arbitrary execution, and remember that a sidecar is not automatically an OS sandbox.
-- Release/update credentials belong outside PR workflows. Validate artifact signatures and recovery before distribution.
+- API key·서명 자료·자격 증명·개인 파일·원본 화면·민감 경로를 커밋하거나 로그로 남기지 않습니다. ignore 규칙은 secret scanner가 아닙니다. 유출 시 승인된 사고 대응 절차로 폐기·교체하며 이력 정리는 별도 승인이 필요합니다.
+- 로컬 저장과 명시적 보존·삭제 선택을 우선합니다. AI provider로 전송하는 행위는 별도 동의 경계입니다. 요약·벡터·캐시·백업에도 삭제 정책을 적용합니다. SQLite는 기본적으로 저장 암호화를 제공하지 않습니다.
+- macOS 권한 부여는 개별 작업 승인이 아닙니다. 마이크·화면·Accessibility는 명시적 작업에만 요청하고 거부·철회를 처리하며 감시 중단을 표시합니다. 서명·공증은 권한을 우회하지 않습니다.
+- host가 인자를 검증하고 default deny, least privilege, per-tool authorization, 철회를 적용해야 합니다. 승인을 실제 작업·인자·대상에 결합하고 실행 직전 재검증하며 비식별 audit trail을 기록합니다. 모델의 승인 필드는 실행 권한이 아닙니다.
+- 외부 웹·파일과 정책을 분리합니다. local IPC 인증, 승인 replay·중복 효과 방지, 임의 실행 제한이 필요합니다. sidecar 자체는 OS sandbox가 아닙니다.
+- 배포·업데이트 키를 PR workflow에 제공하지 않습니다. 배포 전에 artifact 서명과 복구를 검증합니다.

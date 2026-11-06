@@ -1,9 +1,11 @@
-# Coding standards
+# 코딩·문서 기준 · Coding Standards
 
-Current scope is governance; no language toolchain or formatter is mandated yet. Use UTF-8, LF, final newlines, descriptive names and focused changes. Markdown should distinguish implemented behavior from proposals. Keep links relative within the repository and avoid personal environment data.
+현재 범위는 거버넌스이며 특정 앱 toolchain이나 formatter를 강제하지 않습니다. UTF-8, LF, 마지막 줄바꿈, 명확한 이름과 집중된 변경을 사용합니다. 문서는 구현 상태와 제안을 구분하고 저장소 내부 링크는 상대 경로를 사용하며 개인 환경 정보를 제외합니다.
 
-Use Conventional Commits and reviewable boundaries. Do not add generated output, binaries, private data or credentials. Keep dependency lockfiles tracked when a package ecosystem is introduced. Pin deliberate dependency changes and record rationale, compatibility and validation; do not upgrade incidentally.
+문서·Issue·PR은 한국어 설명을 기본으로 합니다. API·제품명·명령·식별자는 영어 원형을 유지하고 필요한 제목만 한영 병기합니다. 전체 문단을 두 언어로 반복하지 않습니다.
 
-Future code should expose narrow typed boundaries, validate untrusted input, use explicit cancellation/timeouts and bounded queues, and preserve error context without secrets. Separate UI, policy, execution and persistence. ABI ownership/threading and IPC protocol versioning require documented contracts. Do not build speculative abstractions before evidence justifies them.
+Conventional Commits와 리뷰 가능한 커밋 경계를 사용합니다. 산출물·바이너리·개인정보·자격 증명을 추가하지 않습니다. 패키지 생태계 도입 시 lockfile을 추적합니다. 의존성 변경은 목적·버전·호환성·검증을 명시하며 부수적으로 업그레이드하지 않습니다.
 
-Architecture changes require an approved Issue and ADR where consequential. These standards do not authorize implementation of future components.
+향후 코드는 좁은 typed boundary, 불신 입력 검증, 명시적 취소·timeout, bounded queue, 비밀을 제외한 오류 정보를 사용합니다. UI·정책·실행·저장을 구분합니다. ABI 소유권/threading과 IPC protocol version은 계약으로 기록합니다. 필요 증거 없이 추측성 추상화를 만들지 않습니다.
+
+아키텍처 변경에는 승인된 Issue와 필요한 ADR이 있어야 합니다. 이 기준은 미래 컴포넌트 구현을 승인하지 않습니다.

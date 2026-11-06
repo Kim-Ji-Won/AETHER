@@ -1,44 +1,46 @@
-## Summary
+## 요약 · Summary
 
-Describe the problem and resulting behavior.
+문제와 변경 후 동작을 설명합니다.
 
-## Related Issue
+## 관련 Issue
 
-Refs #<actual-number> (use Closes only if merging fully resolves the Issue).
+Refs #<실제 번호>
 
-## Scope and exclusions
+병합으로 Issue 전체가 완료될 때만 Closes를 사용합니다.
 
-## Architecture impact
+## 범위와 제외 사항 · Scope
 
-Link ADR or explain why none is needed.
+## 아키텍처 영향 · Architecture
 
-## Security/privacy impact
+ADR을 연결하거나 불필요한 이유를 설명합니다.
 
-No secrets, personal data or exploit details. Identify permission/data boundaries.
+## 보안·개인정보 영향 · Security / Privacy
 
-## Changes implemented
+비밀·개인정보·exploit 상세를 포함하지 않습니다. 권한·데이터 경계를 설명합니다.
 
-## Testing evidence
+## 구현 내용 · Changes
 
-Record commands, tested SHA, and PASS / FAIL / BLOCKED / NOT_RUN.
+## 검증 증거 · Testing Evidence
 
-## Failed/deferred checks
+실제 명령·검증 SHA·PASS / FAIL / BLOCKED / NOT_RUN을 기록합니다.
 
-Explain limitations and any explicitly accepted exceptions.
+## 실패·보류 검사 · Deferred Checks
 
-## Screenshots or UI recordings
+한계와 명시적으로 승인된 예외를 설명합니다.
 
-When relevant; redact private content, otherwise mark not applicable.
+## 화면 증거 · Screenshots / Recordings
 
-## Reviewer checklist
+UI 변경 시 필요한 비식별화 자료를 첨부하고, 해당 없으면 명시합니다.
 
-- [ ] Issue criteria and approved scope satisfied
-- [ ] Latest head SHA reviewed; no critical unresolved findings
-- [ ] Relevant CI/local checks passed or exceptions explicitly accepted
-- [ ] No credentials, private data or unintended generated output
-- [ ] Architecture/security implications and recovery reviewed
-- [ ] Explicit user approval obtained before any merge (not implied by CI)
+## 리뷰 체크리스트 · Review
 
-## Rollback or recovery
+- [ ] Issue 완료 조건과 승인 범위를 충족함
+- [ ] 최신 head SHA를 검토했으며 중요한 미해결 지적이 없음
+- [ ] 관련 CI·로컬 검사가 통과했거나 예외가 명시적으로 승인됨
+- [ ] 자격 증명·개인정보·불필요한 산출물이 없음
+- [ ] 아키텍처·보안 영향과 복구 방안을 검토함
+- [ ] 병합 전에 명시적 사용자 승인을 받음 (CI 성공만으로 승인되지 않음)
 
-Describe safe recovery and migration constraints; no destructive cleanup assumed.
+## 복구 방안 · Rollback / Recovery
+
+안전한 복구와 migration 제약을 설명합니다. 파괴적 정리를 전제하지 않습니다.

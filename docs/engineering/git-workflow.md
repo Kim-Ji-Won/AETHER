@@ -1,48 +1,65 @@
-# Git workflow and repository administration
+# Git 작업 흐름 · Git Workflow
 
-## Trunk-based development
+## Trunk-based Development
 
-Every normal task starts from an Issue. Use short-lived topic branches from the reviewed main baseline; no long-running develop branch or unrelated feature bundling. Main is intended to represent reviewed, integration-tested work; enforcement is not yet active. The sole initial README commit was an authorized bootstrap exception (Issue #1 records its SHA). No later governance or application work may commit directly to main.
+일반 작업은 실제 Issue에서 시작합니다. 검토된 main 기준점에서 짧은 topic branch를 만들고 장기 develop 브랜치나 무관한 기능 묶음을 피합니다. main은 검토·통합 검증된 기준점을 지향하지만 보호 설정은 아직 활성화되지 않았습니다. 최초 README 커밋만 승인된 초기화 예외이며 Issue #1에 SHA를 기록했습니다. 이후 거버넌스·앱 개발 모두 main 직접 커밋을 금지합니다.
 
-Branch formats: `feat/<issue>-<description>`, `fix/<issue>-<description>`, `spike/<issue>-<description>`, `chore/<issue>-<description>`, `docs/<issue>-<description>`, `test/<issue>-<description>`, `security/<issue>-<description>`, or `release/<version>` (still link its real Issue in the PR). Use actual Issue numbers and lowercase kebab-case descriptions. Never force-push shared branches, rewrite history or delete unmerged work.
+브랜치 형식:
 
-Conventional Commit and PR title format: `type(scope): imperative summary`. Types: feat, fix, docs, test, refactor, perf, build, ci, chore, security. Use meaningful commit boundaries. Stage explicit file paths, inspect the staged diff, and keep lockfiles but exclude secrets and generated output.
+- `feat/<issue>-<description>`
+- `fix/<issue>-<description>`
+- `spike/<issue>-<description>`
+- `chore/<issue>-<description>`
+- `docs/<issue>-<description>`
+- `test/<issue>-<description>`
+- `security/<issue>-<description>`
+- `release/<version>` — PR에는 실제 Issue를 연결합니다.
 
-Open a Draft PR for incomplete work. Use `Refs #N` for partial work and `Closes #N` only if the merged PR fully completes the Issue. Review the latest head SHA. Merge only after Issue criteria, required CI and local checks (or explicitly accepted exceptions), security review, resolved critical findings and explicit user merge approval. Review comments are not formal approval; green CI is not merge permission. Squash commit titles must follow Conventional Commits. After an authorized merge verify main SHA and local/remote synchronization.
+실제 Issue 번호와 lowercase kebab-case 설명을 사용합니다. 공유 브랜치 force-push, 이력 재작성, 미병합 작업 삭제는 금지합니다.
 
-## Observed settings and approval-dependent configuration
+## 커밋·PR · Conventional Commits
 
-P0-G inspection on 2026-11-06: public repository, main initialized, no rulesets, main not protected, squash/merge/rebase enabled, auto-merge disabled, automatic branch deletion disabled. Admin capability was reported, but no settings were changed. Current state: **POLICY_DOCUMENTED_NOT_TECHNICALLY_ENFORCED**. Recheck live state before activation.
+형식은 `type(scope): imperative summary`입니다. type은 feat, fix, docs, test, refactor, perf, build, ci, chore, security를 사용합니다. type(scope)은 영어로 유지하고 요약은 한국어 또는 영어로 명확하게 작성합니다. 예: `docs(repo): 한영 혼합 문서 기준 적용`.
 
-Proposed settings (explicit authorization required): squash ON; merge commits OFF; rebase OFF; auto-merge OFF; automatic head deletion ON only after confirming it will not remove needed work. No branch deletion is authorized by this document.
+의미 있는 단위로 커밋하고 정확한 파일 경로만 stage합니다. staged diff를 검토하고 lockfile은 추적하되 비밀과 산출물은 제외합니다. 미완료 작업은 Draft PR로 시작합니다. 부분 작업은 `Refs #N`, 병합으로 Issue 전체를 해결할 때만 `Closes #N`을 사용합니다.
 
-Proposed active main ruleset: target refs/heads/main; require PR; block force pushes and deletion; require conversation resolution; restrict direct updates through PR requirement; minimize and document bypass actors. Initially require zero independent approvals until a viable reviewer plan exists. Do not require signed commits without signing readiness. After the actual `governance` check succeeds reliably, select its exact check identity as required; do not require planned application checks. Test a maintainer's legitimate merge path before enforcing; do not configure an unconditional update restriction that blocks all merges. Record enforcement mode, bypass scope and evidence. Documentation alone does not protect main.
+최신 head SHA, 완료 조건, 필수 CI·로컬 검사(또는 명시적으로 승인된 예외), 보안 검토, 중요한 지적 해결을 확인하고 사용자에게 명시적 병합 승인을 받습니다. 리뷰 댓글은 정식 승인이 아니며 CI 성공도 병합 허가가 아닙니다. squash 제목도 Conventional Commits를 따릅니다. 승인된 병합 후 main SHA와 로컬·원격 동기화를 검증합니다.
 
-## Exact proposed label taxonomy
+## 관찰한 설정과 승인 필요 항목 · Configuration
 
-Create only missing labels after comparing existing names; never assign absent labels. Existing default labels are retained. This bootstrap does not administer labels; use the following manual configuration list. Colors omit the hash.
+2026-11-06 P0-G 점검: Public, main 초기화 완료, ruleset 없음, main 보호 없음, Squash/Merge/Rebase ON, Auto-merge OFF, 자동 head 삭제 OFF. admin 권한이 보고됐지만 설정은 변경하지 않았습니다. 상태는 **POLICY_DOCUMENTED_NOT_TECHNICALLY_ENFORCED**이며 활성화 전에 실시간 상태를 다시 확인합니다.
 
-| Labels | Color | Description pattern |
+제안: Squash ON, Merge commits OFF, Rebase OFF, Auto-merge OFF. 자동 head 삭제는 필요한 작업을 지우지 않는지 확인한 뒤 ON을 검토합니다. 이 문서는 브랜치 삭제나 설정 변경 승인이 아닙니다.
+
+main ruleset 제안: `refs/heads/main` 대상 PR 필수, force-push·삭제 차단, 대화 해결 필수, PR 요구로 직접 변경 제한, bypass 최소화·기록. 현실적인 리뷰어 계획 전에는 독립 승인 수를 0으로 둡니다. 서명 준비를 검증하기 전 signed commit을 강제하지 않습니다. 실제 `governance` 검사가 안정적으로 성공한 뒤 정확한 check identity를 필수화하며 계획 단계의 앱 검사를 필수화하지 않습니다.
+
+관리자의 정상 병합 경로를 확인하고 모든 병합을 막는 무조건 update 제한을 설정하지 않습니다. enforcement mode·bypass 범위·증거를 기록합니다. 문서만으로 main을 보호할 수 없습니다.
+
+## 라벨 제안 · Labels
+
+기존 이름을 비교하고 없는 라벨만 생성합니다. 없는 라벨을 할당하지 않으며 기본 라벨은 보존합니다. 이번 bootstrap에서는 라벨을 관리하지 않았습니다. 아래는 수동 설정 목록이며 색상은 #을 제외한 값입니다.
+
+| Labels | Color | 설명 |
 |---|---|---|
-| type:feature, type:bug, type:research, type:security, type:chore | 1d76db | Work type: corresponding suffix |
-| area:desktop, area:ui, area:agent, area:voice, area:memory, area:native, area:security, area:release, area:infra | 5319e7 | Component: corresponding suffix |
-| priority:p0 | b60205 | Blocking or critical priority |
-| priority:p1 | d93f0b | Important next-priority work |
-| priority:p2 | fbca04 | Normal or deferred priority |
-| status:blocked | b60205 | Cannot proceed without a named dependency |
-| status:needs-review | 0e8a16 | Awaiting review; not an approval |
+| type:feature, type:bug, type:research, type:security, type:chore | 1d76db | 작업 유형: 해당 suffix |
+| area:desktop, area:ui, area:agent, area:voice, area:memory, area:native, area:security, area:release, area:infra | 5319e7 | 컴포넌트: 해당 suffix |
+| priority:p0 | b60205 | 차단 또는 긴급 우선순위 |
+| priority:p1 | d93f0b | 중요 후속 작업 |
+| priority:p2 | fbca04 | 일반 또는 보류 작업 |
+| status:blocked | b60205 | 명시된 의존성 해결 전 진행 불가 |
+| status:needs-review | 0e8a16 | 리뷰 대기, 승인 의미 아님 |
 
-## Proposed milestone titles
+## 마일스톤 제안 · Milestones
 
-Create only missing titles, without due dates or invented numeric IDs. These group the roadmap, not delivery promises. Creation/assignment is pending maintainer configuration.
+없는 제목만 생성하고 임의 번호·기한을 만들지 않습니다. 아래는 납기 약속이 아닌 roadmap 분류이며 관리자 설정·할당을 기다립니다. 영어는 식별용 제목, 괄호는 한국어 설명입니다.
 
-- P0 — Architecture & Feasibility
-- P1 — Desktop Foundation
-- P2 — Agent Runtime
-- P3 — Voice Intelligence
-- P4 — Computer Control
-- P5 — Persistent Memory
-- P6 — Product UI & Experience
-- P7 — Release Engineering
+- P0 — Architecture & Feasibility (아키텍처·실현 가능성)
+- P1 — Desktop Foundation (데스크톱 기반)
+- P2 — Agent Runtime (에이전트 실행 환경)
+- P3 — Voice Intelligence (음성 상호작용)
+- P4 — Computer Control (컴퓨터 제어)
+- P5 — Persistent Memory (영속 메모리)
+- P6 — Product UI & Experience (제품 UI·사용 경험)
+- P7 — Release Engineering (배포 엔지니어링)
 
-Enable and verify Private Vulnerability Reporting separately, then update SECURITY.md and the security form. Establish a separate private conduct-report route. License choice remains pending. Repository administration is not implicitly authorized by a content PR.
+Private Vulnerability Reporting은 별도로 활성화·검증한 후 SECURITY.md와 보안 양식을 갱신합니다. 비공개 행동규범 신고 경로와 라이선스도 결정해야 합니다. 문서 PR은 저장소 관리 설정을 암묵적으로 승인하지 않습니다.
