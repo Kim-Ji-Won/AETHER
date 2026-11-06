@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-native-version",
+  "description": "로컬 main 창에서 macOS 주 버전 조회만 허용합니다.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["allow-get-macos-major-version"]
+}
