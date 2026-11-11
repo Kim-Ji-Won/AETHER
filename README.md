@@ -4,13 +4,13 @@
 
 ## 현재 상태 · Status
 
-**P0-B-E1a — 첫 창과 로컬 앱 번들 검증** 단계입니다. `apps/desktop/`에 Tauri 2 + React + TypeScript + Vite 기반 최소 앱을 구현했습니다. Apple Silicon Mac에서 `AETHER.app` 빌드·독립 실행과 실제 창의 클릭 동작을 확인했습니다. 초기 `코어 대기 중`에서 `코어 점등` 버튼을 누르면 링이 밝아지고 `코어 점등됨`으로 바뀝니다. 상태는 앱을 다시 시작하면 초기화됩니다.
+**P0-B-E3b까지 병합된 Apple Silicon macOS 실험 앱**입니다. `apps/desktop/`에 Tauri 2 + React + TypeScript + Vite 기반 창과 Rust–Swift 연동이 있습니다. 첫 창의 코어 점등, macOS 버전·Accessibility 상태 조회, 네이티브 대화상자를 통한 메모리 카운터 승인·취소를 확인했습니다. 카운터는 앱을 다시 실행하면 초기화됩니다. 승인 버튼은 과거 검증에서 GUI 자동화로 눌렀습니다. [E3b 실행 기록](https://github.com/Kim-Ji-Won/AETHER/issues/13#issuecomment-6688672930)
 
-이는 로컬 실험이며 배포 가능한 제품이 아닙니다. 음성·AI·컴퓨터 제어·메모리 기능은 아직 구현하지 않았습니다. Developer ID 서명·공증·DMG 배포는 E1b 범위입니다.
+로컬 DMG에서 복사한 앱 실행까지 확인했습니다. Developer ID 서명·공증·stapling·다른 Mac 설치 검증은 남아 있습니다. Accessibility 허용·철회와 외부 작업 실행은 검증하지 않았습니다. AI 요청, 음성, 컴퓨터 제어, 영구 기억, 실제 3D Core, 공개 배포는 미구현입니다. [로컬 DMG 실험](https://github.com/Kim-Ji-Won/AETHER/issues/6#issuecomment-6687130601)
 
 ## macOS 실행 · Local Run
 
-Apple Silicon Mac에서 기존 Xcode / Command Line Tools, macOS SDK, Node.js와 npm, `aarch64-apple-darwin` Rust toolchain이 필요합니다. 검증 환경은 Node.js `22.21.0`, npm `10.9.4`, Rust / Cargo `1.99.1`입니다. 저장소 루트에서 실행합니다. 의존성 최초 설치·빌드는 네트워크와 여유 디스크가 필요합니다.
+Apple Silicon Mac에서 기존 Xcode / Command Line Tools, macOS SDK, Node.js와 npm, `aarch64-apple-darwin` Rust toolchain이 필요합니다. E1a 당시 검증 환경은 Node.js `22.21.0`, npm `10.9.4`, Rust / Cargo `1.99.1`입니다. 저장소 루트에서 실행합니다. 의존성 최초 설치·빌드는 네트워크와 여유 디스크가 필요합니다.
 
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -37,7 +37,13 @@ open "$PWD/src-tauri/target/release/bundle/macos/AETHER.app"
 | Visualization | Three.js / React Three Fiber |
 | Distribution | Developer ID 서명, 공증된 DMG |
 
-Desktop / UI의 최소 구성만 E1a에서 검증했습니다. 나머지 기술은 **후보이며 확정된 결정이나 검증된 기능이 아닙니다.** [아키텍처 검토](docs/architecture/README.md)와 [ADR 작성 기준](docs/decisions/README.md)을 참고하세요.
+E4a에서는 검증된 범위와 후속 후보를 문서로 정리합니다. Runtime 배치와 production 아키텍처는 제안 상태입니다.
+
+- [아키텍처 검토](docs/architecture/README.md)
+- [통합 아키텍처 RFC 초안](docs/architecture/rfc-001-aether-system.md)
+- [E4 Runtime 비교 실험 계획](docs/architecture/e4-runtime-comparison-plan.md)
+- [P0~P7 개발 로드맵](docs/engineering/development-roadmap.md)
+- [ADR 작성 기준](docs/decisions/README.md)
 
 ## 참여 및 검증 · Contributing
 
