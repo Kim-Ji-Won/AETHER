@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import './styles.css';
+import { FakeRun } from './FakeRun';
 
 function App() {
   const [lit, setLit] = useState(false);
@@ -113,6 +114,7 @@ function App() {
             </p>
           </div>
         </div>
+        <FakeRun />
       </section>
       <footer><span>LOCAL EXPERIENCE</span><span>첫 번째 신호를 기다립니다.</span><span>P0 · E1a</span></footer>
     </main>

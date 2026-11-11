@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-fake-run",
+  "description": "로컬 main 창의 E4b 합성 작업 생성, 고정 이벤트 제출, 메모리 원장 조회만 허용합니다.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["allow-create-fake-run", "allow-submit-fake-event", "allow-get-fake-run"]
+}
