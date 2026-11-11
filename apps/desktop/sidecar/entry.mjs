@@ -15,7 +15,9 @@ process.stdin.on('data', chunk => {
   buffer = Buffer.concat([buffer, chunk]);
   let newline;
   while ((newline = buffer.indexOf(10)) !== -1) {
-    const line = buffer.subarray(0, newline).toString('utf8');
+    let line;
+    try { line = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, newline)); }
+    catch { return fail(); }
     buffer = buffer.subarray(newline + 1);
     let value;
     try { value = JSON.parse(line); } catch { return fail(); }

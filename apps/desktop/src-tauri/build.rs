@@ -21,6 +21,7 @@ fn main() {
                 "request_counter_increment",
                 "get_experiment_counter",
                 "create_fake_run",
+                "cancel_fake_run",
                 "submit_fake_event",
                 "get_fake_run",
                 "start_node_fake_run",

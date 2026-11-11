@@ -4,16 +4,22 @@ mod fake_run;
 mod sidecar;
 
 #[tauri::command]
-async fn start_node_fake_run(app: tauri::AppHandle) -> Result<(fake_run::Snapshot, u32, i32), String> {
+async fn start_node_fake_run(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(fake_run::Snapshot, u32, i32), String> {
+    let start = fake_run::Start::parse(request.body())?;
     use tauri::Manager;
     let resources = app.path().resource_dir().map_err(|_| "Bundle resource directory unavailable")?;
-    tauri::async_runtime::spawn_blocking(move || sidecar::run(resources))
+    tauri::async_runtime::spawn_blocking(move || sidecar::run(resources, start))
         .await.map_err(|_| "Sidecar worker failed")?
 }
 
 #[tauri::command]
-fn create_fake_run() -> Result<fake_run::Snapshot, &'static str> {
-    fake_run::create()
+fn create_fake_run(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snapshot, &'static str> {
+    fake_run::begin(fake_run::Start::parse(request.body())?, "webview-a")
+}
+
+#[tauri::command]
+fn cancel_fake_run(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snapshot, &'static str> {
+    fake_run::cancel_body(request.body())
 }
 
 #[tauri::command]
@@ -59,6 +65,7 @@ fn main() {
             request_counter_increment,
             get_experiment_counter,
             create_fake_run,
+            cancel_fake_run,
             submit_fake_event,
             get_fake_run,
             start_node_fake_run,
