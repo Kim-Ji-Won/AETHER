@@ -14,6 +14,9 @@ fn main() {
                 "get_accessibility_trust_status",
                 "request_counter_increment",
                 "get_experiment_counter",
+                "create_fake_run",
+                "submit_fake_event",
+                "get_fake_run",
             ]),
         ),
     ).expect("build Tauri app manifest");

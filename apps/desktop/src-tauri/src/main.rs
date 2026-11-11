@@ -1,5 +1,21 @@
 mod native_bridge;
 mod approval;
+mod fake_run;
+
+#[tauri::command]
+fn create_fake_run() -> Result<fake_run::Snapshot, &'static str> {
+    fake_run::create()
+}
+
+#[tauri::command]
+fn submit_fake_event(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snapshot, &'static str> {
+    fake_run::submit(fake_run::Frame::parse(request.body())?)
+}
+
+#[tauri::command]
+fn get_fake_run() -> Result<Option<fake_run::Snapshot>, &'static str> {
+    fake_run::snapshot()
+}
 
 #[tauri::command]
 fn get_macos_major_version() -> i32 {
@@ -33,6 +49,9 @@ fn main() {
             get_accessibility_trust_status,
             request_counter_increment,
             get_experiment_counter,
+            create_fake_run,
+            submit_fake_event,
+            get_fake_run,
         ])
         .run(tauri::generate_context!())
         .expect("AETHER application failed to start");
