@@ -6,9 +6,20 @@ use crate::fake_run::{self, Frame, Snapshot};
 
 const MAX_FRAME: usize = 512;
 const TIMEOUT: Duration = Duration::from_secs(5);
-type Reply = Result<(Snapshot, u32, i32), String>;
+pub type Reply = Result<(Snapshot, u32, i32), String>;
 
 struct ChildGuard(Child);
+impl ChildGuard {
+    fn reap(&mut self) -> Result<std::process::ExitStatus, String> {
+        if self.0.try_wait().map_err(|_| "Child wait failed")?.is_none() {
+            self.0.kill().map_err(|_| "Child kill failed")?;
+        }
+        self.0.wait().map_err(|_| "Child reap failed".into())
+    }
+}
+#[derive(Default)]
+struct ChildReport { pid: u32, reaped: bool, exit: Option<i32> }
+
 impl Drop for ChildGuard {
     fn drop(&mut self) {
         if !matches!(self.0.try_wait(), Ok(Some(_))) { let _ = self.0.kill(); }
@@ -40,7 +51,7 @@ fn write_frame(writer: &mut impl Write, line: &str) -> Result<(), String> {
     writer.write_all(line.as_bytes()).and_then(|_| writer.flush()).map_err(|_| "Sidecar write failed".into())
 }
 
-pub fn run(resource_dir: PathBuf) -> Reply {
+pub fn run(resource_dir: PathBuf, start: fake_run::Start) -> Reply {
     // resource_dir comes only from Tauri's app resolver, never from IPC arguments.
     let resources = resource_dir.canonicalize().map_err(|_| "Missing bundle resources")?;
     let dir = resources.join("sidecar").canonicalize().map_err(|_| "Missing bundled sidecar")?;
@@ -49,18 +60,25 @@ pub fn run(resource_dir: PathBuf) -> Reply {
     let entry = resource_file(&dir, "entry.mjs")?;
     resource_file(&dir, "fake-provider.js")?;
     resource_file(&dir, "LICENSE")?;
-    let created = fake_run::create_node()?;
-    let result = exchange(&node, &entry, &dir, &created);
-    fake_run::finish_node(created.1);
+    let created = fake_run::begin(start, "node-b")?;
+    let mut report = ChildReport::default();
+    let result = exchange(&node, &entry, &dir, &created, TIMEOUT, &mut report);
+    fake_run::finish_node(created.1, report.reaped || report.pid == 0);
+    let snapshot = fake_run::snapshot()?.ok_or("Missing run")?;
+    if snapshot.1 == created.1 && snapshot.4 == "cancelled" && report.reaped {
+        return Ok((snapshot, report.pid, report.exit.unwrap_or(-1)));
+    }
     result
 }
 
-fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot) -> Reply {
+fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
+    timeout: Duration, report: &mut ChildReport) -> Reply {
     let child = Command::new(node).arg(entry).current_dir(cwd).env_clear()
         .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
         .spawn().map_err(|_| "Bundled Node spawn failed")?;
     let mut child = ChildGuard(child);
     let pid = child.0.id();
+    report.pid = pid;
     let started = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "Clock unavailable")?.as_millis();
     eprintln!("AETHER_SIDECAR pid={pid} parent={} started_unix_ms={started} executable=Contents/Resources/sidecar/node run_id={}", std::process::id(), created.1);
     let mut stdin = child.0.stdin.take().ok_or("Missing child stdin")?;
@@ -80,8 +98,19 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot) -> Reply 
         let mut bytes = Vec::new();
         stderr.take(4097).read_to_end(&mut bytes).map(|_| bytes.len())
     });
-    let receive = || rx.recv_timeout(TIMEOUT).map_err(|_| "Sidecar response timeout/disconnect".to_string())?
-        .and_then(|line| line.ok_or("Unexpected sidecar EOF".into()));
+    let receive_frame = || -> Result<Option<String>, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if fake_run::cancel_pending(created.1) { return Err("Cancelled by host".into()); }
+            if Instant::now() >= deadline { return Err("Sidecar response timeout".into()); }
+            match rx.recv_timeout(Duration::from_millis(10)) {
+                Ok(frame) => return frame,
+                Err(mpsc::RecvTimeoutError::Timeout) => {},
+                Err(_) => return Err("Sidecar disconnected".into()),
+            }
+        }
+    };
+    let receive = || -> Result<String, String> { receive_frame()?.ok_or("Unexpected sidecar EOF".into()) };
 
     let result = (|| -> Reply {
         write_frame(&mut stdin, &format!("{{\"version\":1,\"type\":\"begin\",\"run_id\":{},\"request_id\":{},\"generation\":{},\"input\":\"테스트 질문\"}}\n", created.1, created.2, created.3))?;
@@ -96,6 +125,15 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot) -> Reply 
             let frame = Frame::parse(&body(receive()?)?)?;
             if seq == 5 { fake_run::validate_node_terminal(&frame)?; terminal = Some(frame); }
             else { fake_run::submit_node(frame)?; }
+            if seq == 2 && created.11 == "pause25" {
+                eprintln!("AETHER_BARRIER run_id={} variant=node-b barrier=progress25", created.1);
+                let deadline = Instant::now() + Duration::from_secs(300);
+                loop {
+                    if fake_run::cancel_pending(created.1) { return Err("Cancelled by host".into()); }
+                    if Instant::now() >= deadline { return Err("Barrier timeout".into()); }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
             write_frame(&mut stdin, &format!("{{\"version\":1,\"type\":\"ack\",\"run_id\":{},\"seq\":{seq}}}\n", created.1))?;
         }
         let done = body(receive()?)?;
@@ -104,11 +142,12 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot) -> Reply 
             || done["run_id"].as_u64() != Some(created.1 as u64) || done["seq"] != 5 {
             return Err("Invalid Node completion".into());
         }
-        if rx.recv_timeout(TIMEOUT).map_err(|_| "Sidecar EOF timeout")??.is_some() {
+        if receive_frame()?.is_some() {
             return Err("Unexpected trailing sidecar output".into());
         }
-        let deadline = Instant::now() + TIMEOUT;
+        let deadline = Instant::now() + timeout;
         let status = loop {
+            if fake_run::cancel_pending(created.1) { return Err("Cancelled by host".into()); }
             if let Some(status) = child.0.try_wait().map_err(|_| "Child wait failed")? { break status; }
             if Instant::now() >= deadline { return Err("Child exit timeout".into()); }
             std::thread::sleep(Duration::from_millis(10));
@@ -123,12 +162,15 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot) -> Reply 
     }
     drop(stdin);
     // Close/kill/wait before joining pipe readers on any failed exchange.
+    let cleanup = child.reap();
+    if let Ok(status) = &cleanup { report.reaped = true; report.exit = status.code(); }
     drop(child);
     let _ = output.join();
     let stderr_bytes = diagnostics.join().ok().and_then(Result::ok).unwrap_or(4097);
     if result.is_err() {
-        eprintln!("AETHER_SIDECAR pid={pid} failed=true reaped=true stderr_bytes={stderr_bytes}");
+        eprintln!("AETHER_SIDECAR pid={pid} stopped=true reaped={} exit={:?} stderr_bytes={stderr_bytes}", report.reaped, report.exit);
     }
+    cleanup?;
     result
 }
 
@@ -143,14 +185,21 @@ mod tests {
     }
     #[test]
     fn real_pinned_node_roundtrip_uses_host_ledger_once() {
+        let _serial = TEST_SERIAL.lock().unwrap();
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sidecar/generated").canonicalize().unwrap();
         let created = fake_run::create_node().unwrap();
         // The WebView transport cannot inject into a B-owned run.
         let injected = format!("{{\"version\":1,\"run_id\":{},\"request_id\":{},\"generation\":1,\"seq\":1,\"type\":\"start\",\"value\":\"\"}}", created.1, created.2);
         assert!(fake_run::submit(Frame::parse(&body(injected).unwrap()).unwrap()).is_err());
-        let (run, _, exit) = exchange(&dir.join("node"), &dir.join("entry.mjs"), &dir, &created).unwrap();
+        let (run, _, exit) = exchange(&dir.join("node"), &dir.join("entry.mjs"), &dir, &created, TIMEOUT, &mut ChildReport::default()).unwrap();
         assert_eq!((run.4, run.5, run.6, run.7, run.8, run.10, exit), ("succeeded", 5, 75, 1, "FAKE_OK", "node-b", 0));
         assert_eq!(run.9, vec![(1,"start",""), (2,"progress","25"), (3,"progress","50"), (4,"progress","75"), (5,"terminal","FAKE_OK")]);
-        fake_run::finish_node(created.1);
+        fake_run::finish_node(created.1, true);
     }
 }
+
+#[cfg(test)]
+static TEST_SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+#[cfg(test)]
+#[path = "sidecar_tests.rs"]
+mod safety_tests;

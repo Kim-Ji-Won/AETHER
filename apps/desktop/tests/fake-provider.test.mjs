@@ -35,3 +35,19 @@ test('host rejection stops subsequent events and does not emit terminal', async 
   }, 0));
   assert.deepEqual(events.map(event => event.type), ['start', 'progress']);
 });
+
+test('pause25 cancellation interrupts provider without late progress, repeated ten times', async () => {
+  for (let trial = 0; trial < 10; trial++) {
+    const controller = new AbortController(); const events = [];
+    await assert.rejects(runFakeProvider(FIXTURE_INPUT, async event => {
+      events.push(event);
+      if (event.value === '25') controller.abort();
+    }, 0, { signal: controller.signal, pause25: true }));
+    assert.deepEqual(events.map(e => e.value), ['', '25']);
+  }
+});
+test('pre-cancelled provider emits no start', async () => {
+  const controller = new AbortController(); controller.abort(); let calls = 0;
+  await assert.rejects(runFakeProvider(FIXTURE_INPUT, async () => { calls++; }, 0, { signal: controller.signal }));
+  assert.equal(calls, 0);
+});

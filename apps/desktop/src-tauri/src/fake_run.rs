@@ -1,10 +1,10 @@
-//! E4b: one in-memory run, fixed synthetic events, no external effects.
+//! One bounded in-memory run. Rust serializes events, cancellation and terminal decisions.
 use std::sync::{Mutex, OnceLock};
 use tauri::ipc::InvokeBody;
 
 // JSON tuple, documented in docs/architecture/e4b-normal-path.md.
 pub type Snapshot = (u32, u32, u32, u32, &'static str, u32, u8, u8, &'static str,
-    Vec<(u32, &'static str, &'static str)>, &'static str);
+    Vec<(u32, &'static str, &'static str)>, &'static str, &'static str);
 
 #[derive(Clone, Debug)]
 pub struct Frame {
@@ -20,6 +20,7 @@ pub struct Frame {
 impl Frame {
     pub fn parse(body: &InvokeBody) -> Result<Self, &'static str> {
         let InvokeBody::Json(json) = body else { return Err("Expected JSON object") };
+        if json.to_string().len() > 511 { return Err("Frame too large after JSON parsing"); }
         let object = json.as_object().ok_or("Expected JSON object")?;
         // Closed schema: no arbitrary question, metadata, nested data or extra fields.
         let keys = ["version", "run_id", "request_id", "generation", "seq", "type", "value"];
@@ -36,26 +37,67 @@ impl Frame {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Start { pub token: u32, pub mode: &'static str }
+impl Start {
+    pub fn parse(body: &InvokeBody) -> Result<Self, &'static str> {
+        let InvokeBody::Json(j) = body else { return Err("Expected JSON"); };
+        if j.as_object().map(|o| o.len()) != Some(2) || j.to_string().len() > 80 {
+            return Err("Invalid start fields");
+        }
+        let token = j["token"].as_u64().and_then(|v| u32::try_from(v).ok())
+            .filter(|v| *v > 0).ok_or("Invalid start token")?;
+        let mode = match j["mode"].as_str() { Some("normal") => "normal", Some("pause25") => "pause25",
+            _ => return Err("Invalid fixture mode") };
+        Ok(Self { token, mode })
+    }
+}
+
+pub fn cancel_body(body: &InvokeBody) -> Result<Snapshot, &'static str> {
+    let InvokeBody::Json(j) = body else { return Err("Expected JSON"); };
+    if j.as_object().map(|o| o.len()) != Some(2) || j.to_string().len() > 80 {
+        return Err("Invalid cancel fields");
+    }
+    let id = j["run_id"].as_u64().and_then(|v| u32::try_from(v).ok()).ok_or("Invalid run ID")?;
+    let variant = j["variant"].as_str().filter(|v| matches!(*v, "webview-a" | "node-b"))
+        .ok_or("Invalid variant")?;
+    cancel(id, variant)
+}
+
 #[derive(Clone, Default)]
 struct Ledger {
     next_id: u32,
     run: Option<Snapshot>,
     sidecar_busy: bool,
+    last_start: Option<(Start, &'static str)>,
 }
 
 impl Ledger {
+    #[cfg(test)]
     fn create(&mut self) -> Result<Snapshot, &'static str> {
         self.create_variant("webview-a")
     }
 
+    #[cfg(test)]
     fn create_variant(&mut self, variant: &'static str) -> Result<Snapshot, &'static str> {
-        if self.sidecar_busy || self.run.as_ref().is_some_and(|run| matches!(run.4, "created" | "running")) {
+        self.begin(Start { token: self.next_id + 1, mode: "normal" }, variant)
+    }
+
+    fn begin(&mut self, start: Start, variant: &'static str) -> Result<Snapshot, &'static str> {
+        if let Some((previous, owner)) = self.last_start {
+            if start.token == previous.token {
+                return Err(if start == previous && owner == variant { "Duplicate start" } else { "Start conflict" });
+            }
+            if start.token < previous.token { return Err("Stale start token"); }
+        }
+        if self.sidecar_busy || self.run.as_ref().is_some_and(|run| matches!(run.4, "created" | "running" | "cancel_requested")) {
             return Err("Run already active");
         }
         let id = self.next_id.checked_add(1).ok_or("Run ID exhausted")?;
         self.next_id = id;
         // IDs are scoped to this host process. No restart/reload recovery claim.
-        let run = (1, id, id, 1, "created", 0, 0, 0, "", vec![], variant);
+        let run = (1, id, start.token, 1, "created", 0, 0, 0, "", vec![], variant, start.mode);
+        self.last_start = Some((start, variant));
         self.sidecar_busy = variant == "node-b";
         self.run = Some(run.clone());
         Ok(run)
@@ -63,9 +105,14 @@ impl Ledger {
 
     fn apply(&mut self, frame: Frame) -> Result<Snapshot, &'static str> {
         let run = self.run.as_mut().ok_or("No run")?;
-        if (frame.version, frame.run_id, frame.request_id, frame.generation) != (run.0, run.1, run.2, run.3)
-            || frame.seq != run.5 + 1 || matches!(run.4, "succeeded" | "failed") {
-            return Err("Invalid identity, sequence or terminal state");
+        if (frame.version, frame.run_id, frame.request_id, frame.generation) != (run.0, run.1, run.2, run.3) {
+            return Err("Invalid identity");
+        }
+        if let Some((_, kind, value)) = run.9.iter().find(|(seq, _, _)| *seq == frame.seq) {
+            return Err(if *kind == frame.kind && *value == frame.value { "Duplicate frame" } else { "Frame conflict" });
+        }
+        if frame.seq != run.5 + 1 || matches!(run.4, "succeeded" | "failed" | "cancel_requested" | "cancelled") {
+            return Err("Invalid sequence or terminal state");
         }
         let (state, progress, terminal, result, kind, value) = match
             (run.4, frame.kind.as_str(), frame.value.as_str(), run.6) {
@@ -85,13 +132,44 @@ impl Ledger {
         run.9.push((frame.seq, kind, value)); // At most five accepted events.
         Ok(run.clone())
     }
+    fn cancel(&mut self, id: u32, variant: &str) -> Result<Snapshot, &'static str> {
+        let run = self.run.as_mut().ok_or("No run")?;
+        if run.1 != id || run.10 != variant { return Err("Cancel ownership mismatch"); }
+        match run.4 {
+            "succeeded" | "failed" => return Err("Already terminal"),
+            "cancel_requested" | "cancelled" => return Ok(run.clone()), // Idempotent, no trace append.
+            _ => {}
+        }
+        run.4 = "cancel_requested";
+        // Cancellation linearizes here. All subsequent provider events are rejected.
+        // A has no child; B finalizes only after kill/wait outside the mutex.
+        if variant == "webview-a" { Self::cancelled(run); }
+        Ok(run.clone())
+    }
+
+    fn cancelled(run: &mut Snapshot) {
+        run.4 = "cancelled"; run.7 = 1; run.8 = "";
+        run.5 += 1;
+        run.9.push((run.5, "cancelled", ""));
+    }
+
 }
 
 static LEDGER: OnceLock<Mutex<Ledger>> = OnceLock::new();
 fn ledger() -> &'static Mutex<Ledger> { LEDGER.get_or_init(Default::default) }
 
-pub fn create() -> Result<Snapshot, &'static str> {
-    ledger().lock().map_err(|_| "Ledger unavailable")?.create()
+pub fn begin(start: Start, variant: &'static str) -> Result<Snapshot, &'static str> {
+    ledger().lock().map_err(|_| "Ledger unavailable")?.begin(start, variant)
+}
+
+pub fn cancel(id: u32, variant: &str) -> Result<Snapshot, &'static str> {
+    let run = ledger().lock().map_err(|_| "Ledger unavailable")?.cancel(id, variant)?;
+    eprintln!("AETHER_CANCEL run_id={} variant={} state={} terminal_count={}", run.1, run.10, run.4, run.7);
+    Ok(run)
+}
+
+pub fn cancel_pending(id: u32) -> bool {
+    ledger().lock().map(|s| s.run.as_ref().is_some_and(|r| r.1 == id && r.4 == "cancel_requested")).unwrap_or(true)
 }
 
 pub fn submit(frame: Frame) -> Result<Snapshot, &'static str> {
@@ -108,6 +186,7 @@ fn submit_from(frame: Frame, variant: &str) -> Result<Snapshot, &'static str> {
     Ok(run)
 }
 
+#[cfg(test)]
 pub fn create_node() -> Result<Snapshot, &'static str> {
     ledger().lock().map_err(|_| "Ledger unavailable")?.create_variant("node-b")
 }
@@ -123,7 +202,9 @@ pub fn validate_node_terminal(frame: &Frame) -> Result<(), &'static str> {
     Ok(())
 }
 
-pub fn finish_node(id: u32) {
+pub fn finish_node(id: u32, cleanup_complete: bool) {
+    // If OS cleanup could not be confirmed, keep the run busy instead of claiming cancellation.
+    if !cleanup_complete { return; }
     if let Ok(mut state) = ledger().lock() {
         if let Some(run) = &state.run {
             if run.1 != id || run.10 != "node-b" { return; }
@@ -131,6 +212,8 @@ pub fn finish_node(id: u32) {
                 let frame = Frame { version: run.0, run_id: run.1, request_id: run.2,
                     generation: run.3, seq: run.5 + 1, kind: "failed".into(), value: "".into() };
                 let _ = state.apply(frame);
+            } else if run.4 == "cancel_requested" {
+                Ledger::cancelled(state.run.as_mut().unwrap());
             }
         }
         state.sidecar_busy = false;
@@ -215,3 +298,7 @@ mod tests {
         assert!(Frame::parse(&InvokeBody::Raw(vec![0; 512])).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "fake_run_tests.rs"]
+mod safety_tests;

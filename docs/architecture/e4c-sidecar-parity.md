@@ -59,6 +59,8 @@ Node는 같은 Provider의 각 event에 대한 ACK를 기다리고 다음 100 ms
 
 원장은 최신 run 하나입니다. snapshot의 기존 10개 필드 뒤에 `variant` (`webview-a` / `node-b`)를 추가합니다. B session이 끝날 때까지 새 run 생성을 막고, WebView의 기존 event 제출 명령이 B run을 갱신하지 못하게 합니다. Renderer는 B를 시작하고 host snapshot을 50 ms 간격으로 읽지만 Node frame을 직접 전달하지 않습니다. Rust는 state lock을 pipe read/write 또는 child wait 동안 보유하지 않습니다.
 
+현재 E4d 브랜치의 start token/mode, 취소 상태, 실패 검증은 [E4d 문서](e4d-failure-safety.md)를 참고하세요. 아래는 E4c 당시 증거 범위입니다.
+
 ## 검증과 해석
 
 같은 최종 `.app`에서 `WebView A 실행`, `Node B 실행`을 각각 클릭하고 host trace와 화면의 variant·동일 run identity·seq 1~5·25/50/75·FAKE_OK·terminal 1건을 대조합니다. 별개의 A/B run_id 숫자가 다르는 것은 정상입니다. Node B의 UI 완료에는 host가 확인한 `exit 0 / reaped`가 포함됩니다.
