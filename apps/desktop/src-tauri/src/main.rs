@@ -1,6 +1,15 @@
 mod native_bridge;
 mod approval;
 mod fake_run;
+mod sidecar;
+
+#[tauri::command]
+async fn start_node_fake_run(app: tauri::AppHandle) -> Result<(fake_run::Snapshot, u32, i32), String> {
+    use tauri::Manager;
+    let resources = app.path().resource_dir().map_err(|_| "Bundle resource directory unavailable")?;
+    tauri::async_runtime::spawn_blocking(move || sidecar::run(resources))
+        .await.map_err(|_| "Sidecar worker failed")?
+}
 
 #[tauri::command]
 fn create_fake_run() -> Result<fake_run::Snapshot, &'static str> {
@@ -52,6 +61,7 @@ fn main() {
             create_fake_run,
             submit_fake_event,
             get_fake_run,
+            start_node_fake_run,
         ])
         .run(tauri::generate_context!())
         .expect("AETHER application failed to start");
