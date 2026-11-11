@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const node = fileURLToPath(new URL('../src-tauri/sidecar/generated/node', import.meta.url));
 const entry = fileURLToPath(new URL('../src-tauri/sidecar/generated/entry.mjs', import.meta.url));
-const begin = { version: 1, type: 'begin', run_id: 1, request_id: 1, generation: 1, input: '테스트 질문' };
+const begin = { version: 1, type: 'begin', run_id: 1, request_id: 1, generation: 1, input: '테스트 질문', mode: 'normal' };
 function peer(initial, corruptAck = false) {
   return new Promise((resolve, reject) => {
     const child = spawn(node, [entry], { env: {}, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -52,5 +52,32 @@ test('real Node rejects invalid ACK, emits no subsequent progress, and fresh pee
       assert.deepEqual(bad.events.map(e=>e.type),['start']);
     }
     const fresh=await peer(); assert.equal(fresh.code,0); assert.equal(fresh.events.length,5);
+  }
+});
+
+test('host pipe loss interrupts the real Node long60 timer before next progress', async () => {
+  for (let trial = 0; trial < 5; trial++) {
+    const outcome = await new Promise((resolve, reject) => {
+      const child = spawn(node, [entry], { env: {}, stdio: ['pipe', 'pipe', 'pipe'] });
+      const events = []; let buffer = ''; let timedOut = false;
+      const timeout = setTimeout(() => { timedOut = true; child.kill(); }, 2000);
+      child.on('error', reject); child.stdin.on('error', () => {}); child.stderr.resume();
+      child.stdout.on('data', chunk => {
+        buffer += chunk; let end;
+        while ((end = buffer.indexOf('\n')) >= 0) {
+          const frame = JSON.parse(buffer.slice(0, end)); buffer = buffer.slice(end + 1);
+          if (frame.type === 'start') {
+            events.push(frame);
+            child.stdin.write(JSON.stringify({version:1,type:'ack',run_id:1,seq:1})+'\n');
+            // Host-side pipe closure, not a renderer mock or child kill.
+            setTimeout(() => child.stdin.end(), 50);
+          } else if (['progress','terminal'].includes(frame.type)) events.push(frame);
+        }
+      });
+      child.on('close', code => { clearTimeout(timeout); resolve({code,timedOut,events}); });
+      child.stdin.write(JSON.stringify({...begin,mode:'long60'})+'\n');
+    });
+    assert.equal(outcome.timedOut,false); assert.equal(outcome.code,1);
+    assert.deepEqual(outcome.events.map(e=>e.type),['start']);
   }
 });

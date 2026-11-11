@@ -24,6 +24,7 @@ fn main() {
                 "cancel_fake_run",
                 "submit_fake_event",
                 "get_fake_run",
+                "get_runtime_session",
                 "start_node_fake_run",
             ]),
         ),

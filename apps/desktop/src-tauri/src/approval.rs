@@ -1,3 +1,4 @@
+use tauri::Manager;
 use std::sync::{mpsc, Mutex, OnceLock};
 
 type Reply = Result<u32, String>;
@@ -30,6 +31,7 @@ impl ApprovalState {
             0 => Ok(self.count),
             _ => Err("Native approval failed".into()),
         };
+        eprintln!("AETHER_APPROVAL request_id={id} response={response} count={} pending=false", self.count);
         let _ = sender.send(result);
     }
 }
@@ -46,6 +48,7 @@ extern "C" fn complete(id: u64, response: i32) {
 }
 
 unsafe extern "C" {
+    fn aether_cancel_counter_approval(id: u64);
     fn aether_request_counter_approval(
         window: *mut std::ffi::c_void,
         id: u64,
@@ -54,10 +57,11 @@ unsafe extern "C" {
 }
 
 pub async fn request(window: tauri::WebviewWindow) -> Reply {
-    let (id, receiver) = state().lock().map_err(|_| "Approval state unavailable")?.begin()?;
+    let (id, receiver) = crate::lifecycle::with_live(|| state().lock().map_err(|_| "Approval state unavailable")?.begin())?;
     // No state lock is held while scheduling or waiting for the native sheet.
     let parent = window.clone();
     if window.run_on_main_thread(move || {
+        if !state().lock().map(|s| s.pending.as_ref().is_some_and(|p| p.0 == id)).unwrap_or(false) { return; }
         match parent.ns_window() {
             Ok(pointer) => {
                 // SAFETY: AppKit runs on the main thread; the live window is retained by Swift.
@@ -67,14 +71,40 @@ pub async fn request(window: tauri::WebviewWindow) -> Reply {
             Err(_) => complete(id, -1),
         }
     }).is_err() { complete(id, -1); }
-    tauri::async_runtime::spawn_blocking(move || receiver.recv()
-        .unwrap_or_else(|_| Err("Approval response unavailable".into())))
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        match receiver.recv_timeout(std::time::Duration::from_secs(60)) {
+            Ok(reply) => reply,
+            Err(_) => { invalidate_id(&app, id); Err("Approval lifecycle deadline reached".into()) }
+        }
+    })
         .await.map_err(|_| "Approval wait failed")?
+}
+
+fn invalidate_id(app: &tauri::AppHandle, id: u64) {
+    complete(id, -1); // Consume pending before scheduling native teardown.
+    let _ = app.run_on_main_thread(move || unsafe { aether_cancel_counter_approval(id); });
+    eprintln!("AETHER_APPROVAL request_id={id} invalidated=true");
+}
+pub fn invalidate(app: &tauri::AppHandle) {
+    let id = state().lock().ok().and_then(|s| s.pending.as_ref().map(|p| p.0));
+    if let Some(id) = id { invalidate_id(app, id); }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn parent_loss_and_deadline_release_pending_and_reject_late_approval() {
+        let mut state = ApprovalState::default();
+        let (id, rx) = state.begin().unwrap();
+        state.complete(id, -1);
+        assert!(rx.recv_timeout(std::time::Duration::from_millis(10)).unwrap().is_err());
+        let (next, next_rx) = state.begin().unwrap();
+        state.complete(id, 1); state.complete(id, 1);
+        assert_eq!(state.count, 0); assert!(next_rx.try_recv().is_err());
+        state.complete(next, 0); assert_eq!(next_rx.recv().unwrap(), Ok(0));
+    }
     #[test]
     fn cancellation_error_and_replay_do_not_increment() {
         let mut state = ApprovalState::default();

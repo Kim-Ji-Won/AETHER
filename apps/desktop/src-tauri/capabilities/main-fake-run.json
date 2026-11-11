@@ -4,5 +4,5 @@
   "description": "로컬 main 창의 합성 작업 생성, WebView 이벤트 제출, 원장 조회, 고정 bundled Node fixture 시작만 허용합니다.",
   "local": true,
   "windows": ["main"],
-  "permissions": ["allow-create-fake-run", "allow-submit-fake-event", "allow-get-fake-run", "allow-start-node-fake-run", "allow-cancel-fake-run"]
+  "permissions": ["allow-create-fake-run", "allow-submit-fake-event", "allow-get-fake-run", "allow-get-runtime-session", "allow-start-node-fake-run", "allow-cancel-fake-run"]
 }

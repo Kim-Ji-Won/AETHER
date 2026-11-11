@@ -47,7 +47,7 @@ impl Start {
         }
         let token = j["token"].as_u64().and_then(|v| u32::try_from(v).ok())
             .filter(|v| *v > 0).ok_or("Invalid start token")?;
-        let mode = match j["mode"].as_str() { Some("normal") => "normal", Some("pause25") => "pause25",
+        let mode = match j["mode"].as_str() { Some("normal") => "normal", Some("pause25") => "pause25", Some("long60") => "long60",
             _ => return Err("Invalid fixture mode") };
         Ok(Self { token, mode })
     }
@@ -67,6 +67,7 @@ pub fn cancel_body(body: &InvokeBody) -> Result<Snapshot, &'static str> {
 #[derive(Clone, Default)]
 struct Ledger {
     next_id: u32,
+    epoch: u32,
     run: Option<Snapshot>,
     sidecar_busy: bool,
     last_start: Option<(Start, &'static str)>,
@@ -95,8 +96,8 @@ impl Ledger {
         }
         let id = self.next_id.checked_add(1).ok_or("Run ID exhausted")?;
         self.next_id = id;
-        // IDs are scoped to this host process. No restart/reload recovery claim.
-        let run = (1, id, start.token, 1, "created", 0, 0, 0, "", vec![], variant, start.mode);
+        // IDs remain memory-only; lifecycle envelope scopes IPC to an instance/context.
+        let run = (1, id, start.token, self.epoch.max(1), "created", 0, 0, 0, "", vec![], variant, start.mode);
         self.last_start = Some((start, variant));
         self.sidecar_busy = variant == "node-b";
         self.run = Some(run.clone());
@@ -147,6 +148,17 @@ impl Ledger {
         Ok(run.clone())
     }
 
+    fn context_lost(&mut self, epoch: u32) {
+        self.epoch = epoch;
+        if let Some(run) = self.run.as_mut() {
+            if run.10 == "webview-a" && matches!(run.4, "created" | "running") {
+                run.4 = "failed"; run.7 = 1; run.5 += 1;
+                run.9.push((run.5, "failed", ""));
+                eprintln!("AETHER_CONTEXT_LOST run_id={} generation={} state=failed terminal_count=1", run.1, run.3);
+            }
+        }
+    }
+
     fn cancelled(run: &mut Snapshot) {
         run.4 = "cancelled"; run.7 = 1; run.8 = "";
         run.5 += 1;
@@ -181,8 +193,8 @@ fn submit_from(frame: Frame, variant: &str) -> Result<Snapshot, &'static str> {
     if state.run.as_ref().map(|r| r.10) != Some(variant) { return Err("Runtime owner mismatch"); }
     let run = state.apply(frame)?;
     let (_, kind, value) = run.9.last().unwrap();
-    eprintln!("AETHER_FAKE variant={} version={} run_id={} request_id={} generation={} seq={} type={} value={} state={} terminal_count={}",
-        run.10, run.0, run.1, run.2, run.3, run.5, kind, value, run.4, run.7);
+    eprintln!("AETHER_FAKE variant={} version={} run_id={} request_id={} generation={} seq={} type={} value={} state={} terminal_count={} time_ms={} pid={}",
+        run.10, run.0, run.1, run.2, run.3, run.5, kind, value, run.4, run.7, crate::lifecycle::now(), std::process::id());
     Ok(run)
 }
 
@@ -224,6 +236,21 @@ pub fn snapshot() -> Result<Option<Snapshot>, &'static str> {
     Ok(ledger().lock().map_err(|_| "Ledger unavailable")?.run.clone())
 }
 
+// Called under lifecycle's gate, never while waiting on a child or native sheet.
+pub fn context_lost(epoch: u32) {
+    if let Ok(mut state) = ledger().lock() {
+        state.context_lost(epoch);
+    }
+}
+pub fn shutdown() {
+    if let Ok(mut state) = ledger().lock() {
+        if let Some(run) = state.run.clone() {
+            if matches!(run.4, "created" | "running") { let _ = state.cancel(run.1, run.10); }
+        }
+    }
+}
+pub fn child_idle() -> bool { ledger().lock().map(|s| !s.sidecar_busy).unwrap_or(false) }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,6 +265,26 @@ mod tests {
             assert_eq!((run.0, run.1, run.2, run.3, run.5), (1, id, id, 1, seq));
         }
         ledger.run.clone().unwrap()
+    }
+    #[test]
+    fn reload_fails_a_once_preserves_b_and_snapshot_then_new_generation() {
+        for variant in ["webview-a", "node-b"] {
+            let mut ledger = Ledger::default();
+            ledger.create_variant(variant).unwrap();
+            ledger.apply(frame(1,1,"start","")).unwrap();
+            let before = ledger.apply(frame(1,2,"progress","25")).unwrap();
+            ledger.context_lost(2);
+            if variant == "webview-a" {
+                let failed = ledger.run.clone().unwrap();
+                assert_eq!((failed.4,failed.7),("failed",1));
+                ledger.context_lost(3); assert_eq!(ledger.run.as_ref(),Some(&failed));
+                assert!(ledger.apply(frame(1,3,"progress","50")).is_err());
+                let next = ledger.create().unwrap(); assert_eq!(next.3,3);
+            } else {
+                assert_eq!(ledger.run.as_ref(),Some(&before));
+                assert_eq!(ledger.apply(frame(1,3,"progress","50")).unwrap().6,50);
+            }
+        }
     }
     #[test]
     fn normal_order_identity_and_single_terminal() {
