@@ -4,7 +4,7 @@ use tauri::ipc::InvokeBody;
 
 // JSON tuple, documented in docs/architecture/e4b-normal-path.md.
 pub type Snapshot = (u32, u32, u32, u32, &'static str, u32, u8, u8, &'static str,
-    Vec<(u32, &'static str, &'static str)>);
+    Vec<(u32, &'static str, &'static str)>, &'static str);
 
 #[derive(Clone, Debug)]
 pub struct Frame {
@@ -36,21 +36,27 @@ impl Frame {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Ledger {
     next_id: u32,
     run: Option<Snapshot>,
+    sidecar_busy: bool,
 }
 
 impl Ledger {
     fn create(&mut self) -> Result<Snapshot, &'static str> {
-        if self.run.as_ref().is_some_and(|run| matches!(run.4, "created" | "running")) {
+        self.create_variant("webview-a")
+    }
+
+    fn create_variant(&mut self, variant: &'static str) -> Result<Snapshot, &'static str> {
+        if self.sidecar_busy || self.run.as_ref().is_some_and(|run| matches!(run.4, "created" | "running")) {
             return Err("Run already active");
         }
         let id = self.next_id.checked_add(1).ok_or("Run ID exhausted")?;
         self.next_id = id;
         // IDs are scoped to this host process. No restart/reload recovery claim.
-        let run = (1, id, id, 1, "created", 0, 0, 0, "", vec![]);
+        let run = (1, id, id, 1, "created", 0, 0, 0, "", vec![], variant);
+        self.sidecar_busy = variant == "node-b";
         self.run = Some(run.clone());
         Ok(run)
     }
@@ -77,8 +83,6 @@ impl Ledger {
         run.7 = terminal;
         run.8 = result;
         run.9.push((frame.seq, kind, value)); // At most five accepted events.
-        eprintln!("AETHER_FAKE version={} run_id={} request_id={} generation={} seq={} type={} value={} state={} terminal_count={}",
-            run.0, run.1, run.2, run.3, run.5, kind, value, run.4, run.7);
         Ok(run.clone())
     }
 }
@@ -91,7 +95,46 @@ pub fn create() -> Result<Snapshot, &'static str> {
 }
 
 pub fn submit(frame: Frame) -> Result<Snapshot, &'static str> {
-    ledger().lock().map_err(|_| "Ledger unavailable")?.apply(frame)
+    submit_from(frame, "webview-a")
+}
+
+fn submit_from(frame: Frame, variant: &str) -> Result<Snapshot, &'static str> {
+    let mut state = ledger().lock().map_err(|_| "Ledger unavailable")?;
+    if state.run.as_ref().map(|r| r.10) != Some(variant) { return Err("Runtime owner mismatch"); }
+    let run = state.apply(frame)?;
+    let (_, kind, value) = run.9.last().unwrap();
+    eprintln!("AETHER_FAKE variant={} version={} run_id={} request_id={} generation={} seq={} type={} value={} state={} terminal_count={}",
+        run.10, run.0, run.1, run.2, run.3, run.5, kind, value, run.4, run.7);
+    Ok(run)
+}
+
+pub fn create_node() -> Result<Snapshot, &'static str> {
+    ledger().lock().map_err(|_| "Ledger unavailable")?.create_variant("node-b")
+}
+
+pub fn submit_node(frame: Frame) -> Result<Snapshot, &'static str> { submit_from(frame, "node-b") }
+
+pub fn validate_node_terminal(frame: &Frame) -> Result<(), &'static str> {
+    let state = ledger().lock().map_err(|_| "Ledger unavailable")?;
+    if !state.sidecar_busy || state.run.as_ref().map(|r| r.10) != Some("node-b")
+        || frame.kind != "terminal" { return Err("Invalid sidecar terminal"); }
+    // Validate without publishing success; success requires a normal child exit as well.
+    state.clone().apply(frame.clone())?;
+    Ok(())
+}
+
+pub fn finish_node(id: u32) {
+    if let Ok(mut state) = ledger().lock() {
+        if let Some(run) = &state.run {
+            if run.1 != id || run.10 != "node-b" { return; }
+            if matches!(run.4, "created" | "running") {
+                let frame = Frame { version: run.0, run_id: run.1, request_id: run.2,
+                    generation: run.3, seq: run.5 + 1, kind: "failed".into(), value: "".into() };
+                let _ = state.apply(frame);
+            }
+        }
+        state.sidecar_busy = false;
+    }
 }
 
 pub fn snapshot() -> Result<Option<Snapshot>, &'static str> {

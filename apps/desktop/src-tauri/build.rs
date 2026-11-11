@@ -7,6 +7,12 @@ fn xcrun_output(args: &[&str]) -> String {
 }
 
 fn main() {
+    for path in ["sidecar/generated/node", "sidecar/generated/LICENSE", "../sidecar/node-provenance.json"] {
+        println!("cargo:rerun-if-changed={path}");
+    }
+    let verified = Command::new("python3").args(["../../../scripts/prepare_node_sidecar.py", "--verify-only"])
+        .status().expect("verify prepared Node runtime");
+    assert!(verified.success(), "Prepare the pinned Node runtime before building");
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(
             tauri_build::AppManifest::new().commands(&[
@@ -17,6 +23,7 @@ fn main() {
                 "create_fake_run",
                 "submit_fake_event",
                 "get_fake_run",
+                "start_node_fake_run",
             ]),
         ),
     ).expect("build Tauri app manifest");

@@ -27,6 +27,8 @@ open "$PWD/src-tauri/target/release/bundle/macos/AETHER.app"
 
 ## 후보 아키텍처 · Candidate Architecture
 
+E4c 작업 브랜치에서는 같은 TypeScript Fake Provider를 bundled Node.js에서 실행하는 `Node B 실행`을 추가하고 `WebView A 실행`과 비교합니다. Rust만 고정된 bundle child를 시작하며, [E4c 준비·실행 문서](docs/architecture/e4c-sidecar-parity.md)의 Node 검증 준비 단계가 빌드 전에 필요합니다. Runtime 선정과 성능 비교는 아직 완료하지 않았습니다.
+
 E4b 작업 브랜치에서는 네트워크 없는 Fake Provider의 `25 → 50 → 75 → FAKE_OK`를 Rust 메모리 원장이 확인하고 화면에 표시하는 실험을 추가합니다. 새 `Fake Run 실행` 버튼과 재실행 방법, 계약·한계는 [E4b 정상 경로](docs/architecture/e4b-normal-path.md)에 있습니다. 메모리 원장은 앱 재시작 후 유지되지 않으며, 이 실험은 Runtime 최종 선택을 의미하지 않습니다.
 
 | 영역 | 검토 중인 기술 |

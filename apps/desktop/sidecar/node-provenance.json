@@ -1,0 +1,11 @@
+{
+  "version": "22.21.0",
+  "platform": "darwin-arm64",
+  "archive": "node-v22.21.0-darwin-arm64.tar.gz",
+  "url": "https://nodejs.org/download/release/v22.21.0/node-v22.21.0-darwin-arm64.tar.gz",
+  "checksums_url": "https://nodejs.org/download/release/v22.21.0/SHASUMS256.txt",
+  "archive_sha256": "dbc1a17024a32827adb23b5b11ce98cefcd783145a30fe41bb2845be711e9742",
+  "node_sha256": "64bcb939f5f8c921d104b02d0eb960781c13b49b9133d1d71a768eadd62da401",
+  "license_sha256": "e991d81497a85bb24fc6bffae0a3637a6accd6c6bc5ce1f2c5698bd555cf9d49",
+  "license": "Node.js MIT license and included third-party notices; preserve complete LICENSE"
+}

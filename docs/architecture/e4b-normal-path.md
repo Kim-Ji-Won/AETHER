@@ -3,6 +3,8 @@
 [Issue #17](https://github.com/Kim-Ji-Won/AETHER/issues/17) · 기준 `374eb6c8c696453706e4d503d61ccc4236841898`.
 Option A의 좁은 합성 실험입니다. [RFC](rfc-001-aether-system.md)는 **PROPOSED**이며 E4 전체 비교나 Runtime 선정 결과가 아닙니다.
 
+아래는 E4b 당시 계약·실행 기록입니다. E4c 작업 브랜치의 현재 A/B 실행법과 Node 준비 단계, snapshot variant 확장은 [E4c 정상 경로](e4c-sidecar-parity.md)를 참고하세요.
+
 ## 책임과 흐름
 
 `FakeRun.tsx` → `create_fake_run` → Rust `created` snapshot → `fake-provider.ts` → `submit_fake_event` → Rust 검증·갱신 → 반환 snapshot 표시 → `get_fake_run` 재조회.
