@@ -51,18 +51,24 @@ fn write_frame(writer: &mut impl Write, line: &str) -> Result<(), String> {
     writer.write_all(line.as_bytes()).and_then(|_| writer.flush()).map_err(|_| "Sidecar write failed".into())
 }
 
-pub fn run(resource_dir: PathBuf, start: fake_run::Start) -> Reply {
-    // resource_dir comes only from Tauri's app resolver, never from IPC arguments.
-    let resources = resource_dir.canonicalize().map_err(|_| "Missing bundle resources")?;
-    let dir = resources.join("sidecar").canonicalize().map_err(|_| "Missing bundled sidecar")?;
-    if dir.parent() != Some(resources.as_path()) { return Err("Sidecar directory escaped bundle".into()); }
-    let node = resource_file(&dir, "node")?;
-    let entry = resource_file(&dir, "entry.mjs")?;
-    resource_file(&dir, "fake-provider.js")?;
-    resource_file(&dir, "LICENSE")?;
-    let created = fake_run::begin(start, "node-b")?;
+pub fn run_created(resource_dir: PathBuf, created: Snapshot) -> Reply {
+    // Resolve before spawning; only this branch can certify no child was created.
+    let resolved = (|| -> Result<_, String> {
+        let resources = resource_dir.canonicalize().map_err(|_| "Missing bundle resources")?;
+        let dir = resources.join("sidecar").canonicalize().map_err(|_| "Missing bundled sidecar")?;
+        if dir.parent() != Some(resources.as_path()) { return Err("Sidecar directory escaped bundle".into()); }
+        let node = resource_file(&dir, "node")?;
+        let entry = resource_file(&dir, "entry.mjs")?;
+        resource_file(&dir, "fake-provider.js")?; resource_file(&dir, "LICENSE")?;
+        Ok((dir, node, entry))
+    })();
+    let (dir, node, entry) = match resolved {
+        Ok(paths) => paths,
+        Err(error) => { fake_run::finish_node(created.1, true); return Err(error); }
+    };
     let mut report = ChildReport::default();
-    let result = exchange(&node, &entry, &dir, &created, TIMEOUT, &mut report);
+    let timeout = if created.11 == "long60" { Duration::from_secs(20) } else { TIMEOUT };
+    let result = exchange(&node, &entry, &dir, &created, timeout, &mut report);
     fake_run::finish_node(created.1, report.reaped || report.pid == 0);
     let snapshot = fake_run::snapshot()?.ok_or("Missing run")?;
     if snapshot.1 == created.1 && snapshot.4 == "cancelled" && report.reaped {
@@ -80,7 +86,7 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
     let pid = child.0.id();
     report.pid = pid;
     let started = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "Clock unavailable")?.as_millis();
-    eprintln!("AETHER_SIDECAR pid={pid} parent={} started_unix_ms={started} executable=Contents/Resources/sidecar/node run_id={}", std::process::id(), created.1);
+    eprintln!("AETHER_SIDECAR pid={pid} parent={} started_unix_ms={started} executable=Contents/Resources/sidecar/node run_id={} instance={} generation={}", std::process::id(), created.1, crate::lifecycle::instance(), created.3);
     let mut stdin = child.0.stdin.take().ok_or("Missing child stdin")?;
     let stdout = child.0.stdout.take().ok_or("Missing child stdout")?;
     let stderr = child.0.stderr.take().ok_or("Missing child stderr")?;
@@ -113,7 +119,7 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
     let receive = || -> Result<String, String> { receive_frame()?.ok_or("Unexpected sidecar EOF".into()) };
 
     let result = (|| -> Reply {
-        write_frame(&mut stdin, &format!("{{\"version\":1,\"type\":\"begin\",\"run_id\":{},\"request_id\":{},\"generation\":{},\"input\":\"테스트 질문\"}}\n", created.1, created.2, created.3))?;
+        write_frame(&mut stdin, &format!("{{\"version\":1,\"type\":\"begin\",\"run_id\":{},\"request_id\":{},\"generation\":{},\"input\":\"테스트 질문\",\"mode\":\"{}\"}}\n", created.1, created.2, created.3, created.11))?;
         let ready = body(receive()?)?;
         let InvokeBody::Json(ready) = ready else { unreachable!() };
         if ready.as_object().map(|o| o.len()) != Some(5) || ready["version"] != 1 || ready["type"] != "ready"
@@ -130,6 +136,7 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
                 let deadline = Instant::now() + Duration::from_secs(300);
                 loop {
                     if fake_run::cancel_pending(created.1) { return Err("Cancelled by host".into()); }
+                    if child.0.try_wait().map_err(|_| "Child wait failed")?.is_some() { return Err("Sidecar exited during barrier".into()); }
                     if Instant::now() >= deadline { return Err("Barrier timeout".into()); }
                     std::thread::sleep(Duration::from_millis(10));
                 }

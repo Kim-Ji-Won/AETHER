@@ -12,6 +12,13 @@ public func aetherAccessibilityTrustStatus() -> Int32 {
     AXIsProcessTrusted() ? 1 : 0
 }
 
+// Main-thread-only registry; closures are removed on every completion path.
+private var cancelApprovals: [UInt64: () -> Void] = [:]
+@_cdecl("aether_cancel_counter_approval")
+public func aetherCancelCounterApproval(_ requestID: UInt64) {
+    cancelApprovals[requestID]?()
+}
+
 // A native sheet owns its wording and decision. No WebView-provided approval value is accepted.
 @_cdecl("aether_request_counter_approval")
 public func aetherRequestCounterApproval(
@@ -37,11 +44,17 @@ public func aetherRequestCounterApproval(
     func finish(_ result: Int32) {
         guard !finished else { return }
         finished = true
+        cancelApprovals.removeValue(forKey: requestID)
         if let monitor = escapeMonitor { NSEvent.removeMonitor(monitor) }
         escapeMonitor = nil
         if let observer = closingObserver { NotificationCenter.default.removeObserver(observer) }
         closingObserver = nil
+        fputs("AETHER_NATIVE_APPROVAL request_id=\(requestID) result=\(result) observer_removed=true monitor_removed=true\n", stderr)
         callback(requestID, result)
+    }
+    cancelApprovals[requestID] = {
+        finish(-1)
+        parent.endSheet(alert.window, returnCode: .cancel)
     }
     closingObserver = NotificationCenter.default.addObserver(
         forName: NSWindow.willCloseNotification, object: parent, queue: .main
@@ -58,5 +71,25 @@ public func aetherRequestCounterApproval(
     }
     alert.beginSheetModal(for: parent) { response in
         finish(response == .alertSecondButtonReturn ? 1 : 0)
+    }
+}
+
+// Observe only this application's lifecycle; no other application's windows are read.
+private var lifecycleObservers: [NSObjectProtocol] = []
+@_cdecl("aether_install_lifecycle_observers")
+public func aetherInstallLifecycleObservers(_ terminate: @escaping @convention(c) () -> Void) {
+    guard lifecycleObservers.isEmpty else { return }
+    lifecycleObservers.append(NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: NSApp, queue: .main) { _ in terminate() })
+    for (name, label) in [
+        (NSApplication.didHideNotification, "hidden"),
+        (NSApplication.didUnhideNotification, "unhidden"),
+        (NSWindow.didMiniaturizeNotification, "minimized"),
+        (NSWindow.didDeminiaturizeNotification, "restored")
+    ] {
+        lifecycleObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { note in
+            if let window = note.object as? NSWindow, window.title != "AETHER" { return }
+            let stamp = Int64(Date().timeIntervalSince1970 * 1000)
+            fputs("AETHER_NATIVE_LIFECYCLE event=\(label) pid=\(ProcessInfo.processInfo.processIdentifier) time_ms=\(stamp)\n", stderr)
+        })
     }
 }

@@ -26,7 +26,8 @@ process.stdin.on('data', chunk => {
     else return fail();
   }
 });
-process.stdin.on('end', () => { ended = true; if (waiting) fail(); });
+// EOF means the only host connection is gone, including during a long timer.
+process.stdin.on('end', fail);
 process.stdin.on('error', fail);
 process.stdout.on('error', fail);
 const read = () => queued.length ? Promise.resolve(queued.shift())
@@ -42,8 +43,9 @@ const id = value => Number.isInteger(value) && value > 0 && value <= 0xffffffff;
 
 try {
   const request = await read();
-  if (!keysAre(request, ['version', 'type', 'run_id', 'request_id', 'generation', 'input'])
+  if (!keysAre(request, ['version', 'type', 'run_id', 'request_id', 'generation', 'input', 'mode'])
     || request.version !== 1 || request.type !== 'begin' || request.input !== FIXTURE_INPUT
+    || !['normal', 'pause25', 'long60'].includes(request.mode)
     || !id(request.run_id) || !id(request.request_id) || !id(request.generation)) throw new Error('Invalid begin');
   await send({ version: 1, type: 'ready', pid: process.pid, node_version: process.version, arch: process.arch });
   let seq = 0;
@@ -53,7 +55,7 @@ try {
     const ack = await read();
     if (!keysAre(ack, ['version', 'type', 'run_id', 'seq']) || ack.version !== 1
       || ack.type !== 'ack' || ack.run_id !== request.run_id || ack.seq !== seq) throw new Error('Invalid ACK');
-  });
+  }, request.mode === 'long60' ? 15_000 : 100);
   await send({ version: 1, type: 'done', run_id: request.run_id, seq });
   process.stdin.destroy();
 } catch { fail(); }

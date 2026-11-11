@@ -1,31 +1,36 @@
+use tauri::Manager;
 mod native_bridge;
 mod approval;
 mod fake_run;
 mod sidecar;
+mod lifecycle;
 
 #[tauri::command]
 async fn start_node_fake_run(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(fake_run::Snapshot, u32, i32), String> {
-    let start = fake_run::Start::parse(request.body())?;
     use tauri::Manager;
     let resources = app.path().resource_dir().map_err(|_| "Bundle resource directory unavailable")?;
-    tauri::async_runtime::spawn_blocking(move || sidecar::run(resources, start))
+    let created = lifecycle::with_request(request.body(), |body| fake_run::begin(fake_run::Start::parse(body)?, "node-b"))?;
+    tauri::async_runtime::spawn_blocking(move || sidecar::run_created(resources, created))
         .await.map_err(|_| "Sidecar worker failed")?
 }
 
 #[tauri::command]
 fn create_fake_run(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snapshot, &'static str> {
-    fake_run::begin(fake_run::Start::parse(request.body())?, "webview-a")
+    lifecycle::with_request(request.body(), |body| fake_run::begin(fake_run::Start::parse(body)?, "webview-a"))
 }
 
 #[tauri::command]
 fn cancel_fake_run(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snapshot, &'static str> {
-    fake_run::cancel_body(request.body())
+    lifecycle::with_request(request.body(), fake_run::cancel_body)
 }
 
 #[tauri::command]
 fn submit_fake_event(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snapshot, &'static str> {
-    fake_run::submit(fake_run::Frame::parse(request.body())?)
+    lifecycle::with_request(request.body(), |body| fake_run::submit(fake_run::Frame::parse(body)?))
 }
+
+#[tauri::command]
+fn get_runtime_session() -> Result<(String, u32, bool), &'static str> { lifecycle::session() }
 
 #[tauri::command]
 fn get_fake_run() -> Result<Option<fake_run::Snapshot>, &'static str> {
@@ -58,7 +63,20 @@ fn main() {
         return;
     }
 
+    eprintln!("AETHER_INSTANCE instance={} pid={} time_ms={} executable=Contents/MacOS/aether-desktop", lifecycle::instance(), std::process::id(), lifecycle::now());
     tauri::Builder::default()
+        .setup(|app| { lifecycle::install_menu(app.handle())?; Ok(()) })
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main" && matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                lifecycle::context_lost(webview.app_handle(), "page-started");
+            }
+        })
+        .on_window_event(|window, event| {
+            use tauri::Manager;
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed) {
+                lifecycle::context_lost(window.app_handle(), "window-close");
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_macos_major_version,
             get_accessibility_trust_status,
@@ -68,8 +86,12 @@ fn main() {
             cancel_fake_run,
             submit_fake_event,
             get_fake_run,
+            get_runtime_session,
             start_node_fake_run,
         ])
-        .run(tauri::generate_context!())
-        .expect("AETHER application failed to start");
+        .build(tauri::generate_context!())
+        .expect("AETHER application failed to start")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event { lifecycle::quit(app, &api); }
+        });
 }
