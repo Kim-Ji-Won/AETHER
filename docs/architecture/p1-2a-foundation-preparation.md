@@ -4,7 +4,15 @@ Refs #32. 기준 main `69f6ee1e6d203d253cd7e6c547a8f837d2703feb`. 2026-11-12 KST
 선행 #29 / #31 MERGED, #30 CLOSED. [승인 설계](p1-2-spatial-interface-design.md)와
 [PR #31 추가 승인 조건](https://github.com/Kim-Ji-Won/AETHER/pull/31)을 적용한다.
 
-## 실행 게이트
+## 현재 구현 승인 상태 — 2026-11-12 추가
+
+사용자가 P0 idle 인계와 실제 P1.2a 구현을 승인했다. 아래 준비 당시 UNKNOWN/보류 기록은 역사적 상태다.
+전이 `@tweenjs/tween.js@23.1.3`의 prepare 발견으로 한 차례 설치를 보류한 뒤,
+사용자가 공식 registry exact tarball·검토한 8개 그래프·모든 설치 `--ignore-scripts` 조건으로 재개를 승인했다.
+해당 prepare는 실행하지 않는다. P1.2b 및 최종 시각 품질 승인으로 확장하지 않는다.
+설치와 실제 앱 검증 결과는 [Foundation 검증 기록](p1-2a-foundation-validation.md)에 별도로 남긴다.
+
+## 실행 게이트 — 준비 당시 기록
 
 E5b 실제 측정 상태는 **UNKNOWN**이다. #27 OPEN 여부나 process 부재로 측정 종료를 추정하지 않는다.
 사용자가 실측 완료 또는 명시적 중단과 P1 전용 시간을 확인하기 전 설치·빌드·앱·GUI·GPU 시험은 BLOCKED다.

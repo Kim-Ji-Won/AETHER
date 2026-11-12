@@ -1,0 +1,26 @@
+.foundation { position: absolute; inset: 0; min-height: 0; overflow: hidden; }
+.foundation-caption { position: absolute; top: 14px; left: 12px; right: 12px; z-index: 1; pointer-events: none; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: #afc1ce; font-size: 10px; }
+.foundation-surface { position: absolute; inset: 66px 8px 64px; min-width: 0; }
+.foundation-surface canvas { display: block; width: 100%; height: 100%; }
+.foundation.panel-open .foundation-surface { right: 326px; }
+.shell:has(.nav-expanded) .foundation-surface { left: 148px; }
+.foundation-fallback { position: absolute; inset: 80px 20px 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #c5dde6; }
+.foundation-status { position: absolute; bottom: 8px; left: 12px; right: 12px; font-size: 10px; color: #b7cbd6; }
+.foundation-diagnostics { margin-top: 8px; }
+.foundation-diagnostics summary { cursor: pointer; width: fit-content; padding: 3px; }
+.foundation-diagnostics summary:focus-visible { outline: 2px solid #b2fff0; outline-offset: 3px; }
+.foundation-diagnostics[open] { padding: 10px; border: 1px solid #627f90; border-radius: 10px; background: #091622f5; max-height: 260px; overflow: auto; }
+.foundation-diagnostics p { font-size: 11px; margin: 6px 0; }
+.foundation-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.foundation-actions button { font-size: 11px; padding: 7px; }
+.scene-settings { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.scene-settings label { display: grid; gap: 6px; font-size: 12px; }
+.scene-settings select { padding: 8px; max-width: 100%; }
+.scene-report { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.7; }
+@media (max-width: 700px) {
+  .shell:has(.nav-expanded) .foundation-surface { display: none; }
+  .foundation.panel-open .foundation-surface { display: none; }
+  .foundation.panel-open .foundation-caption, .foundation.panel-open .foundation-status, .foundation.panel-open .foundation-fallback { visibility: hidden; }
+  .foundation-caption { top: 12px; font-size: 10px; }
+  .foundation-caption .badge { font-size: 9px; }
+}
