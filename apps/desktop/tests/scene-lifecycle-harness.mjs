@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import * as THREE from 'three';
+import * as geometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 
 export function compileScene() {
   const desktop = fileURLToPath(new URL('..', import.meta.url));
@@ -110,6 +111,7 @@ export async function harness(output) {
     setInterval() { throw new Error('Unexpected retry interval'); },
   });
   const mocks = {
+    'three/addons/utils/BufferGeometryUtils.js': geometryUtils,
     react, 'react/jsx-runtime': { jsx, jsxs: jsx }, three: { ...THREE, WebGLRenderer: Renderer },
     '@tauri-apps/api/core': { invoke(command) {
       if (command !== 'get_runtime_session') throw new Error(`Forbidden command: ${command}`);

@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { probeShaders } from './capabilities';
 import { frameScene, renderPolicy, type Quality } from './framing';
 import { VisualGate, type VisualSnapshot } from './visual-state';
+import { createNeuralStructure } from './neural';
 
 export type Health = 'ready' | 'lost' | 'unavailable' | 'disposed';
 export type Fault = 'none' | 'shader' | 'fallback';
-export interface SceneOptions { quality: Quality; angle: number; fault: Fault; motion: boolean }
+export interface SceneOptions { quality: Quality; angle: number; fault: Fault; motion: boolean; referenceFraming?: boolean }
 export interface SceneReport {
   health: Health; reason: string; generation: number; frames: number; pendingRAF: number;
   width: number; height: number; dpr: number; calls: number; triangles: number;
@@ -13,6 +14,7 @@ export interface SceneReport {
   geometries: number; materials: number; textures: number;
   liveRenderers: number; created: number; disposed: number; lossSupported: boolean;
   gpuTime: 'UNAVAILABLE'; rss: 'UNAVAILABLE';
+  neuralNodes: number; neuralConnections: number; geometryBytes: number;
 }
 const audit = { generation: 0, live: 0, created: 0, disposed: 0 };
 function p95(values: number[]) {
@@ -33,20 +35,22 @@ export function createFoundation(canvas: HTMLCanvasElement, initial: VisualSnaps
   let motion = options.motion;
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   const intervals: number[] = [], cpu: number[] = [];
-  const geometries: THREE.BufferGeometry[] = [], materials: THREE.MeshStandardMaterial[] = [];
+  const geometries: THREE.BufferGeometry[] = [], materials: THREE.Material[] = [];
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(38, 1, .1, 100);
   const group = new THREE.Group(); scene.add(group);
   let counted = false, available = false;
+  let neural: ReturnType<typeof createNeuralStructure> | null = null;
   function stats(): SceneReport {
     return { health, reason, generation, frames, pendingRAF: raf ? 1 : 0, width, height, dpr, calls, triangles,
       frameP95: p95(intervals), cpuP95: p95(cpu), samples: intervals.length,
       geometries: geometries.length, materials: materials.length, textures: renderer?.info.memory.textures ?? 0,
       liveRenderers: audit.live, created: audit.created, disposed: audit.disposed,
-      lossSupported: !!loss, gpuTime: 'UNAVAILABLE', rss: 'UNAVAILABLE' };
+      lossSupported: !!loss, gpuTime: 'UNAVAILABLE', rss: 'UNAVAILABLE',
+      neuralNodes: neural?.nodeCount ?? 0, neuralConnections: neural?.connections ?? 0, geometryBytes: neural?.bufferBytes ?? 0 };
   }
   function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; last = 0; next = 0; }
   function release() {
-    stop();
+    stop(); neural?.invalidate(); neural=null;
     geometries.splice(0).forEach(g => g.dispose());
     materials.splice(0).forEach(m => m.dispose());
     scene.clear(); group.clear();
@@ -75,8 +79,8 @@ export function createFoundation(canvas: HTMLCanvasElement, initial: VisualSnaps
     if (dead || lost || health !== 'ready' || !policy().animate) { last = 0; return; }
     const period = 1000 / (options.quality === 'high' ? 60 : 30);
     if (!next || time + .75 >= next) {
-      // Small demonstrator rotation only; no final Orbital/Plasma animation.
-      group.rotation.y += last ? Math.min(.06, (time-last)/1000) * .13 : 0;
+      // Advance local presentation time only while drawing; never catch up after suspension.
+      neural?.update(last ? (time-last)/1000 : 0);
       draw(time); next = time + period - (next ? Math.max(0, time-next) % period : 0);
     }
     if (!dead && health === 'ready' && policy().animate) raf = requestAnimationFrame(tick);
@@ -93,7 +97,7 @@ export function createFoundation(canvas: HTMLCanvasElement, initial: VisualSnaps
     if (dead || lost || !renderer) return;
     available = w > 0 && h > 0;
     if (!available) { refresh(); return; }
-    const f = frameScene(w, h, window.devicePixelRatio, options.quality);
+    const f = frameScene(w, h, window.devicePixelRatio, options.quality, options.referenceFraming);
     width=f.width; height=f.height; dpr=f.dpr;
     renderer.setPixelRatio(dpr); renderer.setSize(width, height, false);
     camera.aspect=f.aspect; camera.near=f.near; camera.far=f.far;
@@ -105,7 +109,7 @@ export function createFoundation(canvas: HTMLCanvasElement, initial: VisualSnaps
     if (dead) return;
     motion=enabled;
     if (gate.accept(s)) {
-      materials.forEach(m => { m.emissive.setHex(s.illuminationEnabled ? 0x174e58 : 0x000000); });
+      neural?.setVisual(s);
     }
     refresh();
   }
@@ -134,15 +138,7 @@ export function createFoundation(canvas: HTMLCanvasElement, initial: VisualSnaps
     scene.add(new THREE.HemisphereLight(0xb5e7ff, 0x172331, 2));
     const key = new THREE.DirectionalLight(0xc1f9ff, 4); key.position.set(-3,4,5); scene.add(key);
     const rim = new THREE.DirectionalLight(0xada1ee, 2); rim.position.set(3,2,-3); scene.add(rim);
-    function mesh(g: THREE.BufferGeometry, color: number, x: number, y: number, z: number) {
-      const m = new THREE.MeshStandardMaterial({ color, metalness: .35, roughness: .38 });
-      geometries.push(g); materials.push(m);
-      const object = new THREE.Mesh(g, m); object.position.set(x,y,z); group.add(object); return object;
-    }
-    mesh(new THREE.BoxGeometry(1.4,1.4,1.4), 0x80c7d2, 0,.1,0).rotation.set(.16,.55,.08);
-    mesh(new THREE.CylinderGeometry(.36,.36,2,32), 0xa5a6c6, -1.05,0,-.75);
-    mesh(new THREE.BoxGeometry(.55,.55,.55), 0xc8e7ed, .9,-.25,1);
-    mesh(new THREE.CylinderGeometry(2,2,.15,64), 0x244254, 0,-1.08,0);
+    neural=createNeuralStructure(group, {geometries,materials});
     renderer.compile(scene,camera);
     health='ready'; reason='WebGL2 · Shader compile/link 정상';
     update(initial, motion);
