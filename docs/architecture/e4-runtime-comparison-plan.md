@@ -51,3 +51,7 @@ A가 사용자 요구의 지속성을 충족하면 단순한 패키징을 우선
 ## 다음 최소 검증 단위
 
 **E4b 제안 — Option A 정상 경로 한 건.** 패키징된 A에서 네트워크 없는 고정 fixture 1건을 시작하고, Rust ledger와 UI가 동일 `run_id`로 progress 25/50/75와 `FAKE_OK` terminal 1건을 기록하면 완료입니다. 공통 계약의 작은 기준을 만들고 B 패키징·취소·장시간·성능은 후속 단위에서 검증합니다. E4a에서 착수하지 않았습니다.
+
+## E5a 측정 기반 연결
+
+[Issue #25의 계측 계약과 Harness](e5a-measurement-foundation.md)는 제한된 smoke 기반입니다. E5b/E5c 반복 측정과 Runtime 선정은 NOT_RUN이며 기존 제안 예산을 통과한 것으로 취급하지 않습니다.

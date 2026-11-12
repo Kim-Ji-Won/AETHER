@@ -171,11 +171,16 @@ static LEDGER: OnceLock<Mutex<Ledger>> = OnceLock::new();
 fn ledger() -> &'static Mutex<Ledger> { LEDGER.get_or_init(Default::default) }
 
 pub fn begin(start: Start, variant: &'static str) -> Result<Snapshot, &'static str> {
-    ledger().lock().map_err(|_| "Ledger unavailable")?.begin(start, variant)
+    let received = std::time::Instant::now();
+    let run = ledger().lock().map_err(|_| "Ledger unavailable")?.begin(start, variant)?;
+    crate::measurement::record("host_accept", Some(&run), Some(received), None, None);
+    Ok(run)
 }
 
 pub fn cancel(id: u32, variant: &str) -> Result<Snapshot, &'static str> {
+    let received = std::time::Instant::now();
     let run = ledger().lock().map_err(|_| "Ledger unavailable")?.cancel(id, variant)?;
+    crate::measurement::record("cancel_confirmed", Some(&run), Some(received), None, None);
     eprintln!("AETHER_CANCEL run_id={} variant={} state={} terminal_count={}", run.1, run.10, run.4, run.7);
     Ok(run)
 }
@@ -189,9 +194,12 @@ pub fn submit(frame: Frame) -> Result<Snapshot, &'static str> {
 }
 
 fn submit_from(frame: Frame, variant: &str) -> Result<Snapshot, &'static str> {
+    let received = std::time::Instant::now();
     let mut state = ledger().lock().map_err(|_| "Ledger unavailable")?;
     if state.run.as_ref().map(|r| r.10) != Some(variant) { return Err("Runtime owner mismatch"); }
     let run = state.apply(frame)?;
+    drop(state);
+    crate::measurement::record("event_accepted", Some(&run), Some(received), None, None);
     let (_, kind, value) = run.9.last().unwrap();
     eprintln!("AETHER_FAKE variant={} version={} run_id={} request_id={} generation={} seq={} type={} value={} state={} terminal_count={} time_ms={} pid={}",
         run.10, run.0, run.1, run.2, run.3, run.5, kind, value, run.4, run.7, crate::lifecycle::now(), std::process::id());

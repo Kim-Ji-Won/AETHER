@@ -68,3 +68,5 @@ python3 scripts/validate_governance.py
 소프트웨어 라이선스는 아직 선정하지 않았습니다. 공개 저장소라는 사실만으로 사용 허가가 부여되지는 않습니다. 외부 코드의 본격적인 기여 수락이나 제품 배포 전에 관리자가 결정해야 합니다.
 
 E4e 작업 브랜치는 앱 instance/context 경계, reload snapshot 재연결, 60초 합성 fixture와 Quit·child·승인 정리를 검증합니다. 기본 마지막 창 close는 Quit으로 유지하며 재실행은 새 메모리 세션입니다. 실제 결과와 한계는 [E4e 수명주기 문서](docs/architecture/e4e-lifecycle-safety.md) 및 [Issue #23](https://github.com/Kim-Ji-Won/AETHER/issues/23)에 기록합니다. Runtime 최종 선정과 E5 성능 비교는 미실행입니다.
+
+E5a 측정 기반과 제한된 smoke 재현은 [Performance Measurement Foundation](docs/architecture/e5a-measurement-foundation.md)에 기록합니다. 전체 benchmark와 Runtime 선정은 아직 수행하지 않았습니다.
