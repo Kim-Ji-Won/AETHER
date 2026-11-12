@@ -6,11 +6,32 @@ import tempfile
 import json
 import io
 import contextlib
+import subprocess
+from unittest.mock import patch
 from test_benchmark import trace
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import latency_benchmark as b
 
 class RepeatedTests(unittest.TestCase):
+    def test_real_process_lock_blocks_second_collector_and_releases(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(b,'OUT',Path(temp)), patch.object(b,'_collect',return_value='released') as collect:
+            code="import fcntl,sys; f=open(sys.argv[1],'a'); fcntl.flock(f,fcntl.LOCK_EX); print('ready',flush=True); sys.stdin.read(1)"
+            proc=subprocess.Popen([sys.executable,'-c',code,str(b.OUT/'.collector.lock')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+            try:
+                self.assertEqual(proc.stdout.readline().strip(),'ready')
+                with self.assertRaisesRegex(ValueError,'COLLECTOR_ALREADY_RUNNING'):b.collect({}, {})
+                collect.assert_not_called()
+            finally:
+                proc.communicate('x',timeout=5)
+            self.assertEqual(proc.returncode,0)
+            self.assertEqual(b.collect({}, {}),'released')
+
+    def test_existing_same_artifact_is_blocked_only_at_launch(self):
+        line=f'123 {b.APP}/Contents/MacOS/aether-desktop'
+        with patch.object(b.base,'command',return_value=subprocess.CompletedProcess([],0,line)):
+            self.assertEqual(b.competing_work()['other_aether_processes'],0)
+            self.assertEqual(b.competing_work(include_own_apps=True)['other_aether_processes'],1)
+
     def test_fixed_schedule_no_replacement_and_excluded_warmup(self):
         plan=b.schedule();self.assertEqual(len(plan),144)
         self.assertEqual(len({p['trial_id'] for p in plan}),144)

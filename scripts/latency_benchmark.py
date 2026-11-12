@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """E5b fixed, operator-driven trials. No UI injection, arbitrary executable, or PID option."""
 import argparse
+import fcntl
 import json
 import math
 import os
@@ -44,14 +45,16 @@ def stats(values):
                 p50=values[math.ceil(n*.5)-1] if n else None,p95=values[math.ceil(n*.95)-1] if n else None,unit='ms')
 
 
-def competing_work():
+def competing_work(include_own_apps=False):
     r=base.command(['/bin/ps','-axo','pid=,comm=,args='])
     if r.returncode: raise ValueError('PROCESS_INSPECTION_UNAVAILABLE')
     own=str(OUT)
     # Read transiently only; never serialize other processes or private arguments.
     builds=0; other_apps=0
     for line in r.stdout.splitlines():
-        if own in line: continue
+        if own in line:
+            if include_own_apps and 'AETHER.app/Contents/MacOS/aether-desktop' in line: other_apps+=1
+            continue
         if re.search(r'/(?:rustc|cargo|clang|swiftc)(?:\s|$)',line) or re.search(r'node .*(?:vite|tauri).*\b(?:build|dev)\b',line): builds+=1
         if 'AETHER.app/Contents/MacOS/aether-desktop' in line: other_apps+=1
     return {'build_processes':builds,'other_aether_processes':other_apps}
@@ -83,7 +86,15 @@ def verify(plan):
 
 
 def collect(item, plan):
-    conflict=competing_work()
+    # One collector owns the fixed artifact; a second invocation must not overlap trials.
+    with (OUT/'.collector.lock').open('a') as lock:
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:raise ValueError('COLLECTOR_ALREADY_RUNNING')
+        return _collect(item,plan)
+
+
+def _collect(item, plan):
+    conflict=competing_work(include_own_apps=True)
     if any(conflict.values()): raise ValueError('CONCURRENT_BUILD_OR_APP')
     env=base.environment(); directory=OUT/'trials'/('%03d'%item['index']);directory.mkdir(parents=True,exist_ok=False)
     exe=APP/'Contents/MacOS/aether-desktop'; childexe=str(APP/'Contents/Resources/sidecar/node')
@@ -226,7 +237,7 @@ def main():
     plan=json.loads((OUT/'plan.json').read_text())
     if args.action=='analyze':return analyze(plan)
     verify(plan)
-    if args.action=='check':print(json.dumps({'status':'PASS','source_sha':plan['source_sha'],'artifact_hash':plan['artifact']['artifact_hash'],'conflict':competing_work()}));return
+    if args.action=='check':print(json.dumps({'status':'PASS','source_sha':plan['source_sha'],'artifact_hash':plan['artifact']['artifact_hash'],'conflict':competing_work(include_own_apps=True)}));return
     if not args.quiet_window_confirmed:raise ValueError('USER_QUIET_WINDOW_REQUIRED')
     pending=[x for x in plan['trials'] if not (OUT/'trials'/('%03d'%x['index'])).exists()]
     for item in pending[:4]:
