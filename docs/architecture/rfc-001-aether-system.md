@@ -142,6 +142,12 @@ SQLite 기반 Local-first는 Rust가 transaction·backup·migration을 소유하
 
 ## Frontend와 A+B 3D Core
 
+2026-11-12 사용자 범위 구분: P1.1은 DOM 기반 UI Shell·탐색·입력·상태·접근성에 집중하고 실제 3D는 P1.2로 분리합니다.
+P1.2는 3D Core와 유리·금속 소재의 2.5D Navigation·Context·Command Dock을 하나의 **Cinematic Spatial Interface**로 통합하는 설계·검증을 포함합니다.
+Core와 UI의 공유 조명·색상·상태별 연출, 깊이 계층, 절제된 Hover/Focus/Motion, reduced-motion과 GPU·배터리 예산을 함께 검증합니다.
+P6에서는 이 통합 체계의 최종 시각 품질과 성능을 다듬습니다. [구체 요구사항과 상태 연출표](p1-ui-shell.md#cinematic-spatial-interface-통합-요구사항)를 따르며,
+이 기록은 P1.2 착수·의존성 채택·최종 시각 승인·PR 병합 승인이 아닙니다.
+
 P1에서 첫 실제 3D Core를 만든다는 제안입니다. **A — Orbital Intelligence**는 정교한 궤도, 다중 회전 링, 구조적 깊이를, **B — Neural Plasma**는 중심의 흐름과 맥동하는 발광을 담당합니다. Three.js / React Three Fiber는 후보입니다. P1은 실제 3D 장면과 명시된 Mock 상태를 만들고 P2~P5에서 Runtime·음성·승인·기억 이벤트를 연결합니다. P6에서 시각 품질과 성능을 조정합니다. [Three.js](https://threejs.org/docs/) · [R3F 성능](https://r3f.docs.pmnd.rs/advanced/scaling-performance)
 
 - **Main**은 입력·PTT·현재 상태·코어. **Command Center**는 작업, 승인 요청·결과, 취소와 결과 불명확 확인. **Memory Center**는 출처·검색·수정·삭제·보존. **Settings**는 provider·오디오·권한 상태·motion·경량 모드·개인정보.
