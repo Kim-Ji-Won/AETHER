@@ -64,7 +64,7 @@ function App() {
             </button>
             <p role="status" aria-live="polite">
               실험 카운터: {counter ?? '확인 전'}
-              {counterPending ? ' · 승인 대기 중' : counterFailed ? ' · 요청을 처리하지 못했어요' : ''}
+              {counterPending ? ' · 승인 대기 중' : counterFailed ? ' · 요청 처리 실패' : ''}
             </p>
           </div>
           <div className="native-version">
@@ -72,7 +72,7 @@ function App() {
               {checking ? '확인 중…' : 'macOS 버전 확인'}
             </button>
             <p role="status" aria-live="polite">
-              {versionFailed ? '버전을 확인하지 못했어요' : version !== null ? `macOS ${version}` : ''}
+              {versionFailed ? 'macOS 버전 조회 실패' : version !== null ? `macOS ${version}` : ''}
             </p>
           </div>
           <div className="native-version">
@@ -80,11 +80,11 @@ function App() {
               손쉬운 사용 상태 확인
             </button>
             <p role="status" aria-live="polite">
-              {trustStatus === 'unchecked' ? '아직 확인하지 않았어요'
+              {trustStatus === 'unchecked' ? '손쉬운 사용 권한 · 미확인'
                 : trustStatus === 'checking' ? '확인 중…'
-                : trustStatus === 'trusted' ? '손쉬운 사용 권한이 있어요'
-                : trustStatus === 'untrusted' ? '현재 손쉬운 사용 권한이 없어요'
-                : '상태를 확인하지 못했어요'}
+                : trustStatus === 'trusted' ? '손쉬운 사용 권한 있음'
+                : trustStatus === 'untrusted' ? '손쉬운 사용 권한 없음'
+                : '손쉬운 사용 권한 조회 실패'}
             </p>
           </div>
         </div>} />;

@@ -153,12 +153,12 @@ export function FakeRun() {
           <p>v{run.version} · request_id: {run.request_id} · generation: {run.generation} · seq: {run.seq}</p>
           <p>Rust 확인: {run.trace.map(([seq, type, value]) => `${seq}:${type}${value ? ` ${value}` : ''}`).join(' → ')}</p>
           <p>{run.result || '결과 대기'} · terminal: {run.terminalCount}{childResult ? ` · ${childResult}` : ''}</p>
-          {run.state === 'running' && run.progress === 25 && run.mode === 'pause25' && <p>25%에서 대기 중이에요. 작업 취소를 눌러주세요.</p>}
-          {run.state === 'cancel_requested' && <p>취소 요청을 확인했어요. 실행 정리 중이에요.</p>}
-          {run.state === 'cancelled' && <p>취소했어요. 새 작업을 실행할 수 있어요.</p>}
-          {run.state === 'failed' && <p>작업이 실패했어요. 새 작업으로 다시 시도할 수 있어요.</p>}
+          {run.state === 'running' && run.progress === 25 && run.mode === 'pause25' && <p>25% 대기 중 · 취소하려면 작업 취소를 선택하세요.</p>}
+          {run.state === 'cancel_requested' && <p>취소 요청 확인 · 실행 정리 중</p>}
+          {run.state === 'cancelled' && <p>취소 완료 · 새 작업 실행 가능</p>}
+          {run.state === 'failed' && <p>작업 실패 · 새 작업으로 재시도 가능</p>}
         </> : <p>Fake Provider · 실행 전 · 메모리 전용</p>}
-        {error && <p>요청을 처리하지 못했어요. 마지막 Rust 확인 상태예요. 상태 확인 후 다시 시도해주세요.</p>}
+        {error && <p>요청 처리 실패 · 마지막 Rust 확인 상태를 표시합니다. 상태 확인 후 다시 시도하세요.</p>}
       </div>
     </section>
   );
