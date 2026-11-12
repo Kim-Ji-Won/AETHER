@@ -1,24 +1,14 @@
-/* P1.1: a quiet chamber, one light source, three clearly separated planes. */
-.shell { background: radial-gradient(ellipse at 70% 45%, #12354b44, transparent 65%), #050b13; }
-.sidebar { background: linear-gradient(180deg, #0b1622, #080f18 70%); border-color: #314353; }
-.workspace { margin: 0 auto; }
-.page-header { margin-bottom: 16px; }
-.panel { border-radius: 3px; border-color: #2d4655; background: linear-gradient(115deg, #10233099, #0b1620cc); }
-.panel-title, .settings-panel>h2 { border-color: #33515e; }
-.badge { border-radius: 2px; }
-.cinematic { border: 0; border-radius: 0; overflow: visible; background: transparent; }
-.hud-rail { display: flex; justify-content: space-between; border-bottom: 1px solid #314957; padding: 10px 0; color: #91b2c2; font-size: 7px; letter-spacing: 1.6px; }
-.reactor-scene { display: block; width: calc(100% + 60px); max-width: 900px; height: clamp(300px, 51vh, 460px); margin: 0 -30px -6px; color: var(--core); pointer-events: none; mask-image: linear-gradient(transparent, #000 12%, #000 86%, transparent); }
+/* Existing unapproved 2D renderer, fitted to the P1.2 scene slot.
+   Geometry/artwork is intentionally unchanged; P1.2 replaces this renderer. */
+.core-stage { height: 100%; min-height: 0; display: flex; flex-direction: column; text-align: center; --core: #a3c8d3; }
+.reactor-scene { display: block; width: 100%; flex: 1; min-height: 0; color: var(--core); pointer-events: none; mask-image: linear-gradient(transparent, #000 12%, #000 86%, transparent); }
 .reactor-energy { transform-origin: 360px 226px; opacity: .78; transition: opacity .6s; }
 .is-lit .reactor-energy { opacity: 1; }
-.core-caption { position: relative; margin: 0 0 16px; }
-.core-caption .badge { background: #07111d; border: 1px solid var(--core); font-size: 8px; padding: 5px 12px; }
-.core-caption p { font-size: 14px; letter-spacing: .6px; }
-.core-caption p.muted { color: #a9c2cf; font-size: 11px; letter-spacing: 0; }
-.input-dock { border-radius: 3px; border-color: #436976; border-left: 2px solid #b3f6e8; background: linear-gradient(100deg, #17384488, #0d1c2c); margin-top: 12px; }
-.presence-rail { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 10px; margin-top: 12px; padding: 12px 0; border-top: 1px solid #2d4554; color: #9fb8c9; }
-.core-diagnostics { margin-bottom: 16px; }
-.core-diagnostics .core-controls { justify-content: flex-start; padding-left: 0; padding-right: 0; flex-wrap: wrap; }
+.core-caption { flex-shrink: 0; margin: 0 0 10px; }
+.core-caption .badge { font-size: 8px; border-color: var(--core); background: #091522; }
+.core-caption p { margin: 7px 0 0; font-size: 13px; color: #dae7ef; }
+.core-caption p span { font-size: 11px; color: #a8becc; }
+.core-caption p.muted { font-size: 10px; margin-top: 3px; color: #a9c2cf; }
 .state-idle { --core: #9de9e5; }
 .state-listening { --core: #81f6da; }
 .state-thinking { --core: #c4b5ff; }
@@ -30,18 +20,4 @@
 .state-awaiting_approval .reactor-structure, .state-error .reactor-structure { stroke-dasharray: 5 8; }
 .motion-on .is-lit:not(.state-error):not(.state-awaiting_approval) .reactor-energy { animation: reactor-breath 9s ease-in-out infinite; }
 @keyframes reactor-breath { 50% { transform: scale(1.025) rotate(2deg); } }
-@media(min-width:1100px) {
-  .reactor-scene { width: 100%; margin-left: auto; margin-right: auto; }
-}
-@media(max-width:700px) {
-  .reactor-scene { width: calc(100% + 36px); height: auto; margin: 6px -18px -9px; }
-  .core-diagnostics .core-controls { align-items: flex-start; }
-  .hud-rail { letter-spacing: .6px; }
-}
-@media(max-width:450px) {
-  .reactor-scene { width: calc(100% + 24px); margin-left: -12px; margin-right: -12px; }
-  .presence-rail { line-height: 1.6; }
-}
-@media(prefers-reduced-motion:reduce) {
-  .reactor-energy { animation: none !important; transition: none; }
-}
+@media(prefers-reduced-motion:reduce) { .reactor-energy { animation: none !important; transition: none; } }
