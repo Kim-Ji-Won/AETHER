@@ -6,7 +6,7 @@ import { createNeuralStructure } from './neural';
 
 export type Health = 'ready' | 'lost' | 'unavailable' | 'disposed';
 export type Fault = 'none' | 'shader' | 'fallback';
-export interface SceneOptions { quality: Quality; angle: number; fault: Fault; motion: boolean }
+export interface SceneOptions { quality: Quality; angle: number; fault: Fault; motion: boolean; referenceFraming?: boolean }
 export interface SceneReport {
   health: Health; reason: string; generation: number; frames: number; pendingRAF: number;
   width: number; height: number; dpr: number; calls: number; triangles: number;
@@ -97,7 +97,7 @@ export function createFoundation(canvas: HTMLCanvasElement, initial: VisualSnaps
     if (dead || lost || !renderer) return;
     available = w > 0 && h > 0;
     if (!available) { refresh(); return; }
-    const f = frameScene(w, h, window.devicePixelRatio, options.quality);
+    const f = frameScene(w, h, window.devicePixelRatio, options.quality, options.referenceFraming);
     width=f.width; height=f.height; dpr=f.dpr;
     renderer.setPixelRatio(dpr); renderer.setSize(width, height, false);
     camera.aspect=f.aspect; camera.near=f.near; camera.far=f.far;

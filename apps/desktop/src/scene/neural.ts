@@ -3,47 +3,42 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { VisualSnapshot } from './visual-state';
 
 // Shared art-direction values for later Plasma / DOM integration. No runtime ownership.
-export const neuralPalette = { ice: 0xa6eaff, cyan: 0x45bccf, violet: 0x8988b3, white: 0xd8f6ff };
+export const neuralPalette = { ice: 0x79d8ef, cyan: 0x45bccf, violet: 0x8988b3, white: 0xd8f6ff };
 export const neuralEnvelope = { radius: 2.65, plasmaRadius: 1.45, maxDisplacement: .07 };
 
 const vertexShader = /* glsl */`
   uniform float uTime;
-  attribute float pathPhase;
-  varying vec2 vUv;
-  varying float vPhase;
+  attribute vec2 signalRoute;
+  varying vec2 vRoute;
   varying vec3 vNormal;
   varying vec3 vPosition;
   void main() {
-    // Continuous field shared by every curve and node keeps junctions connected.
+    // Shared continuous field preserves branch junctions, with no whole-Core rotation.
     vec3 p = position;
-    p += .035 * vec3(sin(p.y*1.6+uTime*.31), sin(p.z*1.4+uTime*.27), sin(p.x*1.3+uTime*.23));
+    p += .04 * vec3(sin(p.y*1.8+uTime*.36), sin(p.z*1.6+uTime*.29), sin(p.x*1.4+uTime*.33));
     vPosition = p;
     vNormal = normalize(normalMatrix * normal);
-    vUv = uv; vPhase = pathPhase;
+    vRoute = signalRoute;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   }
 `;
 const fragmentShader = /* glsl */`
   uniform float uTime;
   uniform float uEnergy;
-  uniform float uSpeed;
   uniform float uNode;
   uniform vec3 uColor;
-  varying vec2 vUv;
-  varying float vPhase;
+  varying vec2 vRoute;
   varying vec3 vNormal;
   varying vec3 vPosition;
   void main() {
-    float phase = fract(uTime*uSpeed + vPhase);
-    float wave = exp(-pow((vUv.x-phase)*16.0, 2.0));
-    float activation = .5 + .5*sin(uTime*.85 + vPhase*6.283);
-    float signal = mix(wave, activation*.65, uNode);
-    float key = .34 + .66*max(0.0, dot(normalize(vNormal), normalize(vec3(-.4,.6,1.0))));
-    float center = exp(-length(vPosition)*1.15);
-    // Rear connections are dimmer; opaque depth-tested tubes retain crossings/occlusion.
-    float depth = clamp(.7 + vPosition.z*.23, .32, 1.0);
-    vec3 color = uColor*(key*.52 + center*.65)*depth;
-    color += mix(uColor, vec3(.8,.96,1.0), .6)*signal*uEnergy*(.35+center)*depth;
+    // Eight staggered root channels; travel time is continuous across primary junctions.
+    float age = mod(uTime - vRoute.x - vRoute.y*.79 + 80.0, 8.0);
+    float signal = smoothstep(0.0, .12, age) * exp(-max(0.0,age-.12)*5.0);
+    float key = .38 + .62*max(0.0, dot(normalize(vNormal), normalize(vec3(-.4,.6,1.0))));
+    float center = exp(-dot(vPosition,vPosition)*.7);
+    float depth = clamp(.73 + vPosition.z*.18, .38, 1.0);
+    vec3 color = uColor*(key*.61 + center*.3)*depth;
+    color += mix(uColor, vec3(.65,.92,1.0), .32)*signal*uEnergy*(.8+uNode*.25)*depth;
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -55,50 +50,81 @@ export interface NeuralResources {
   materials: THREE.Material[];
 }
 
-// Stable topology, no random regeneration on resize or frame updates.
+interface NeuralNode { position: THREE.Vector3; arrival: number; channel: number; layer: number }
+
+// Fixed topology: nucleus (8 roots + 40 inner nodes), 42 intermediate, 24 peripheral.
+// This redistributes the existing 114 nodes rather than adding density everywhere.
 export function createNeuralStructure(parent: THREE.Group, owned: NeuralResources) {
   const startGeometry = owned.geometries.length;
   const startMaterial = owned.materials.length;
-  const layers: THREE.Vector3[][] = [];
+  const layers: NeuralNode[][] = [];
   const batches: THREE.BufferGeometry[][] = [[], [], [], []];
-  const uniforms = { uTime: { value: 0 }, uEnergy: { value: .7 }, uSpeed: { value: .12 } };
-  let connections = 0, disposed = false;
+  const uniforms = { uTime: { value: 0 }, uEnergy: { value: 1 }, uSpeed: { value: .85 } };
+  const primaryRoutes: { from: NeuralNode; to: NeuralNode }[] = [];
+  const edgeKeys = new Set<string>();
+  const nodes: NeuralNode[] = [];
+  const layerConnections = [0,0,0];
+  let disposed = false;
   const hash = (i: number) => { const n=Math.sin(i*127.1+311.7)*43758.5453; return n-Math.floor(n); };
-  function phase(g: THREE.BufferGeometry, value: number) {
-    g.setAttribute('pathPhase', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(value), 1));
+  function route(g: THREE.BufferGeometry, a: NeuralNode, b: NeuralNode, node=false) {
+    const uv=g.attributes.uv;
+    const values=new Float32Array(uv.count*2);
+    for(let i=0;i<uv.count;i++) {
+      values[i*2]=node ? b.arrival : THREE.MathUtils.lerp(a.arrival,b.arrival,uv.getX(i));
+      values[i*2+1]=b.channel;
+    }
+    g.setAttribute('signalRoute',new THREE.Float32BufferAttribute(values,2));
     return g;
   }
-  function connect(a: THREE.Vector3, b: THREE.Vector3, layer: number, seed: number) {
-    const delta=b.clone().sub(a);
-    const bend=new THREE.Vector3(delta.y, -delta.x, delta.x*.35).normalize().multiplyScalar(delta.length()*(.16+hash(seed)*.12));
-    const curve=new THREE.CatmullRomCurve3([a, a.clone().lerp(b,.3).add(bend),
-      a.clone().lerp(b,.7).addScaledVector(bend,.65), b]);
-    batches[Math.min(layer,2)].push(phase(new THREE.TubeGeometry(curve, 24, layer===0 ? .012 : layer===1 ? .009 : .0055, 5, false), hash(seed+7)));
-    connections++;
+  function connect(a: NeuralNode, b: NeuralNode, layer: number, seed: number) {
+    const ids=[nodes.indexOf(a),nodes.indexOf(b)].sort((x,y)=>x-y);
+    const key=ids.join(':'); if(edgeKeys.has(key))return;
+    edgeKeys.add(key); layerConnections[layer]++;
+    const delta=b.position.clone().sub(a.position);
+    // Small alternating 3D bends avoid the previous common planar swirl.
+    const bend=new THREE.Vector3(hash(seed)-.5,hash(seed+9)-.5,hash(seed+21)-.5)
+      .normalize().multiplyScalar(delta.length()*.13);
+    const curve=new THREE.CatmullRomCurve3([a.position,
+      a.position.clone().lerp(b.position,.33).add(bend),
+      a.position.clone().lerp(b.position,.7).addScaledVector(bend,.65),b.position]);
+    batches[layer].push(route(new THREE.TubeGeometry(curve,24,[.013,.009,.005][layer],5,false),a,b));
   }
   try {
-    for (let layer=0; layer<4; layer++) {
-      const count=[12,30,48,24][layer], radius=[.46,1.04,1.72,2.15][layer];
-      const points: THREE.Vector3[]=[];
-      for (let i=0; i<count; i++) {
-        const y=1-2*(i+.5)/count, angle=i*2.399963+layer*.71;
-        const r=Math.sqrt(1-y*y), variation=.88+hash(i+layer*51)*.17;
-        const p=new THREE.Vector3(Math.cos(angle)*r*radius*1.04, y*radius*.96, Math.sin(angle)*r*radius*.8).multiplyScalar(variation);
-        points.push(p);
-        const node=phase(new THREE.SphereGeometry(layer===0 ? .035 : layer===1 ? .025 : .017, 8, 6), hash(i+layer*100));
-        node.translate(p.x,p.y,p.z); batches[3].push(node);
+    for(let layer=0;layer<4;layer++) {
+      const count=[8,40,42,24][layer];
+      const points: NeuralNode[]=[];
+      for(let i=0;i<count;i++) {
+        const y=1-2*(i+.5)/count, angle=i*2.399963+layer*.47;
+        const r=Math.sqrt(1-y*y);
+        const radius=layer===0 ? .16 : layer===1 ? .25+.75*Math.pow(((i*17)%count+.5)/count,.65)
+          : layer===2 ? 1.36+hash(i+73)*.16 : 1.9+hash(i+191)*.16;
+        const position=new THREE.Vector3(Math.cos(angle)*r*radius, y*radius*1.02, Math.sin(angle)*r*radius*.92);
+        const nearest=layer ? [...layers[layer-1]].sort((a,b)=>position.distanceToSquared(a.position)-position.distanceToSquared(b.position))[0] : null;
+        const n: NeuralNode={position, layer, channel: nearest?.channel??i,
+          arrival: nearest ? nearest.arrival+nearest.position.distanceTo(position)*.72+.08 : 0};
+        points.push(n); nodes.push(n);
+        if(nearest)primaryRoutes.push({from:nearest,to:n});
+        const sphere=new THREE.SphereGeometry(layer<2 ? .024 : layer===2 ? .02 : .012,8,6);
+        sphere.translate(position.x,position.y,position.z);
+        batches[3].push(route(sphere,n,n,true));
       }
       layers.push(points);
-      points.forEach((p,i) => {
-        const candidates=(layer ? layers[layer-1] : points).filter(q=>q!==p).sort((a,b)=>p.distanceToSquared(a)-p.distanceToSquared(b));
-        connect(candidates[0],p,Math.max(0,layer-1),i+layer*100);
-        if (layer<3 && i%2===0) connect(candidates[1],p,Math.max(0,layer-1),i+layer*173);
-        if (layer===1 || layer===2) {
-          const neighbor=points.filter(q=>q!==p).sort((a,b)=>p.distanceToSquared(a)-p.distanceToSquared(b))[1];
-          if (i%2===0) connect(p,neighbor,layer,i+layer*211);
-        }
-      });
     }
+    for(const {from,to} of primaryRoutes)connect(from,to,Math.max(0,to.layer-1),nodes.indexOf(to));
+    // Compact nucleus cross-links bridge several depths, without filling the outer shell.
+    layers[0].forEach((n,i)=>connect(n,layers[0][(i+1)%8],0,i+400));
+    layers[1].forEach((n,i)=>{
+      const nearest=layers[1].filter(p=>p!==n).sort((a,b)=>n.position.distanceToSquared(a.position)-n.position.distanceToSquared(b.position));
+      for(const other of nearest.slice(0,2)) {
+        const [a,b]=[n,other].sort((x,y)=>x.arrival-y.arrival);
+        connect(a,b,0,i+500);
+      }
+    });
+    layers[2].forEach((n,i)=>{
+      if(i%3!==0)return;
+      const other=layers[1].filter(p=>p.channel===n.channel).sort((a,b)=>n.position.distanceToSquared(a.position)-n.position.distanceToSquared(b.position))[1];
+      if(other)connect(other,n,1,i+600);
+    });
     const colors=[neuralPalette.ice,neuralPalette.cyan,neuralPalette.violet,neuralPalette.white];
     batches.forEach((parts,i) => {
       const geometry=mergeGeometries(parts);
@@ -112,18 +138,18 @@ export function createNeuralStructure(parent: THREE.Group, owned: NeuralResource
   const geometries=owned.geometries.slice(startGeometry), materials=owned.materials.slice(startMaterial);
   const bufferBytes=geometries.reduce((sum,g)=>sum+Object.values(g.attributes).reduce((n,a)=>n+a.array.byteLength,0)+(g.index?.array.byteLength??0),0);
   return {
-    nodeCount: layers.reduce((sum,l)=>sum+l.length,0), connections, bufferBytes,
+    nodeCount: nodes.length, connections: edgeKeys.size, bufferBytes,
     triangles: geometries.reduce((sum,g)=>sum+(g.index?.count??g.attributes.position.count)/3,0),
-    update(delta: number) { if (!disposed) uniforms.uTime.value+=Math.max(0,Math.min(delta,.06)); },
+    update(delta: number) { if (!disposed) uniforms.uTime.value+=Math.max(0,Math.min(delta,.06))*uniforms.uSpeed.value; },
     setVisual(snapshot: VisualSnapshot) {
       if (disposed) return;
       const preview=snapshot.source==='preview';
-      uniforms.uEnergy.value=snapshot.illuminationEnabled ? 1.05 : .7;
-      uniforms.uSpeed.value=preview && snapshot.phase==='thinking' ? .2 : preview && snapshot.phase==='speaking' ? .16 : .12;
+      uniforms.uEnergy.value=snapshot.illuminationEnabled ? 1.3 : 1;
+      uniforms.uSpeed.value=preview && snapshot.phase==='thinking' ? 1.35 : preview && snapshot.phase==='speaking' ? 1.1 : .85;
+      if(preview && snapshot.phase==='thinking')uniforms.uEnergy.value*=1.2;
       if (preview && (snapshot.phase==='error' || snapshot.phase==='awaiting_approval')) uniforms.uEnergy.value=.35;
     },
-    // Renderer owns actual resource disposal; this only invalidates future updates.
     invalidate() { disposed=true; },
-    inspection: { geometries, materials, uniforms },
+    inspection: { geometries, materials, uniforms, nodes, primaryRoutes, layerConnections },
   };
 }

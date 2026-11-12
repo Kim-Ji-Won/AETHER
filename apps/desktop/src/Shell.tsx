@@ -13,6 +13,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
   const [angle, setAngle] = useState(0);
   const [fault, setFault] = useState<Fault>('none');
   const [sceneReport, setSceneReport] = useState<SceneReport | null>(null);
+  const [referenceFraming, setReferenceFraming] = useState(false);
   const [page, setPage] = useState<Page>('main');
   const [preview, setPreview] = useState<CoreState | ''>('');
   const [motion, setMotion] = useState(true);
@@ -50,7 +51,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
         <div className="main-stage">
           <section className="scene-viewport" aria-label="3D Scene 배치 영역">
             <SceneHost snapshot={visualSnapshot} motion={motion} panelOpen={status || context}
-              options={{quality, angle, fault}} onReport={setSceneReport} />
+              options={{quality, angle, fault, referenceFraming}} onReport={setSceneReport} />
           </section>
           {status && <StatusArea close={closeStatus} />}
           <ContextPanel open={context} close={closeContext} navigate={navigate} />
@@ -75,6 +76,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
           <div className="scene-settings">
             <label>Scene 품질<select value={quality} onChange={e => setQuality(e.target.value as Quality)}><option value="balanced">Balanced · 30fps 목표</option><option value="high">High · 60fps 목표</option></select></label>
             <label>Camera 시점<select value={angle} onChange={e => setAngle(Number(e.target.value))}><option value={-15}>−15°</option><option value={0}>정면</option><option value={15}>+15°</option></select></label>
+            <label>Camera 거리<select value={referenceFraming ? 'reference' : 'refined'} onChange={e => setReferenceFraming(e.target.value === 'reference')}><option value="refined">개선 Framing</option><option value="reference">이전 거리 · 비교용</option></select></label>
             <label>GPU 실패 진단<select value={fault} onChange={e => setFault(e.target.value as Fault)}><option value="none">정상 경로</option><option value="shader">Shader compile 실패 주입</option><option value="fallback">DOM fallback 주입</option></select></label>
           </div>
           <pre className="scene-report" aria-label="Scene 최근 진단">{sceneReport ? JSON.stringify(sceneReport, null, 2) : 'Main Scene 실행 전'}</pre>

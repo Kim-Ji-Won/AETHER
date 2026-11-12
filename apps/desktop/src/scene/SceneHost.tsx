@@ -30,7 +30,7 @@ export function SceneHost({ snapshot, motion, panelOpen, options, onReport }: {
       if (engine.current===instance) engine.current=null;
     };
     // Snapshot content/motion are updates, only owner identity or explicit reset recreates GPU resources.
-  }, [snapshot?.instance, snapshot?.contextEpoch, options.quality, options.angle, options.fault, revision]);
+  }, [snapshot?.instance, snapshot?.contextEpoch, options.quality, options.angle, options.fault, options.referenceFraming, revision]);
   useEffect(() => { if (snapshot) engine.current?.update(snapshot,motion); }, [snapshot,motion]);
   const ready = !!snapshot && report?.health==='ready';
   return <section className={`foundation ${panelOpen ? 'panel-open' : ''}`} aria-label="Living Neural Structure Preview">

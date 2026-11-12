@@ -150,3 +150,7 @@ Bundle SHA-256: `919b1bbf652825981a98d5536b4bc5ba8d0d206d651cc18f4b20b8e1e339ce6
 P1 앱의 PID·시작 시각·실행 경로를 대조하고 정상 Quit 후 소유 앱/sidecar/빌드/테스트 process 0을 확인했다.
 P0나 사용자 앱을 종료하지 않았다. E5b source·계측·raw 자료 및 P1.1/P1.2a 고정 앱을 수정하지 않았다.
 검증 종료 후 추가 P1 빌드·GUI 실행은 중지한다.
+
+## 후속 시각 리뷰
+
+위 ed30216 결과는 사용자 시각 승인을 받지 않았다. [Neural Nucleus 개선과 새 검증 기록](p1-2b-neural-refinement.md)을 참고한다. 기존 캡처·앱·측정 수치는 비교 기준으로 보존한다.
