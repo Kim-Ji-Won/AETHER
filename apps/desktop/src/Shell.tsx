@@ -25,9 +25,9 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
       <div className="sidebar-bottom"><span className="status-light" />LOCAL SHELL<small>P1.1 / Development preview</small><p>당신의 공간, 새로운 가능성.</p></div>
     </aside>
     <main id="workspace" className="workspace" tabIndex={-1}>
-      <header className="page-header"><div><p className="eyebrow">AETHER / {current[2].toUpperCase()}</p><h1 ref={heading} tabIndex={-1}>{current[1]}</h1></div><span className="connection"><span className="status-light" /> AI 미연결</span></header>
+      <header className="page-header"><div><p className="eyebrow">WORKSPACE / {current[2].toUpperCase()}</p><h1 ref={heading} tabIndex={-1}>{current[1]}</h1></div><span className="connection"><span className="status-light" /> AI 미연결</span></header>
       <section hidden={page !== 'main'} aria-label="Main">
-        <div className="hero cinematic"><div className="hud-rail" aria-hidden="true"><span>A / E — PERSONAL INTELLIGENCE</span><span>LOCAL INTERFACE</span></div><div className="hero-heading"><p className="eyebrow">ORBITAL INTELLIGENCE / NEURAL FIELD</p><h2>AETHER</h2><p>당신의 다음 가능성을 위한 공간.</p></div>
+        <div className="hero cinematic"><div className="hud-rail" aria-hidden="true"><span>CORE ENVIRONMENT</span><span>LOCAL VISUAL</span></div>
           <Core state={preview || 'offline'} lit={lit} preview={preview !== ''} />
 
         </div>
@@ -52,7 +52,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
         <div className="panel settings-panel"><h2>권한과 시스템</h2><div className="setting-row"><div><h3>마이크 · 미확인</h3><p>음성 기능 미연결 · 권한을 요청하지 않습니다.</p></div><span className="badge">준비 중</span></div><div className="setting-row"><div><h3>손쉬운 사용</h3><p>현재 권한은 Native Diagnostics에서 직접 조회합니다.</p></div><button onClick={() => navigate('command')}>상태 조회로 이동</button></div></div>
         <div className="panel settings-panel"><h2>Appearance & Motion</h2><div className="setting-row"><div><h3>Deep Space</h3><p>기본 어두운 테마 · 다른 테마 준비 중</p></div><span className="theme-swatch" aria-label="남청색 테마" /></div><div className="setting-row"><div><h3>은은한 Core 움직임</h3><p>현재 세션에 적용 · 시스템 동작 줄이기 우선</p></div><label className="motion-toggle"><input type="checkbox" checked={motion} onChange={e => setMotion(e.target.checked)} />{motion ? '켜짐' : '꺼짐'}</label></div></div>
       </section>
-      <footer><span>AETHER <span className="muted">/ UI SHELL</span></span><span>LOCAL FIRST · P1.1</span></footer>
+      <footer><span>UI SHELL · DEVELOPMENT PREVIEW</span><span>LOCAL FIRST · P1.1</span></footer>
     </main>
   </div>;
 }
