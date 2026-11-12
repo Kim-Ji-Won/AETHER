@@ -51,10 +51,13 @@ Tauri native binding, Node pin, Rust/Swift/IPC/CSP/capability와 E5 계측 소�
 
 ## 로컬 및 실제 앱 검증
 
+아래는 앱 source `4153e67a8e16c87bbd1a616866d4e896e144da6d`의 기존 검증이다.
+뒤의 병합 전 리뷰 보완은 문서·테스트만 변경하며 새 GUI 실행 결과로 이 표를 승계하지 않는다.
+
 | 검사 | 결과 / 근거 |
 |---|---|
 | TypeScript 7 / Vite 8 / React 19 호환 | PASS: npm run typecheck 및 production build. Three 포함 JS 약 791kB, 500kB chunk 경고는 남음 |
-| 순수 Scene 계약 | PASS: Node 5 tests; freshness·invalid source/phase·camera sphere fit·motion policy |
+| 순수 Scene 계약 | PASS: Node 5 tests; freshness·invalid source/phase·camera sphere fit·motion policy. Generation 도우미 검사는 실제 SceneHost 비동기 수명 검증이 아님 |
 | 기존 Node | PASS: 8 tests; 실제 pinned sidecar framing/취소/회복 포함 |
 | Rust | PASS: 19 tests --locked --offline; 원장/승인/reload/종료/실제 Node 회귀 |
 | arm64 package | PASS: 독립 target/p1-2a-issue-32, --no-sign app; 기존 P1.1 bundle 유지 |
@@ -109,3 +112,56 @@ Rust: `CARGO_TARGET_DIR=<P1 target> cargo test --manifest-path apps/desktop/src-
 Draft PR #33 유지. 실제 앱 경로·source SHA·bundle hash·최신 CI는 PR/사용자 보고에 기록한다.
 사용자 Foundation 시각 승인 및 최신 HEAD squash 승인은 각각 별도이며 아직 없다.
 P1.2b / 최종 Orbital·Plasma·Bloom·통합 Chamber 구현은 시작하지 않는다.
+
+## 병합 전 리뷰 보완 — 2026-11-12
+
+### 검사 경계와 재현
+
+`tests/scene-lifecycle.test.mjs`와 `tests/scene-lifecycle-harness.mjs`를 추가했다.
+설치된 TypeScript로 **수정하지 않은 실제 SceneHost / Renderer / Visual Adapter 소스**를 임시 디렉터리에
+컴파일하여 Node VM에서 실행한다. 임시 출력은 검사 후 삭제하며 앱 dist/bundle을 덮어쓰지 않는다.
+새 의존성·설치·앱 코드 변경은 없다.
+
+Three Geometry/Material은 실제 라이브러리 객체다. WebGLRenderer/GL/DOM/RAF/ResizeObserver와 React hooks는
+제어 가능한 대역이다. **ReactDOM의 실제 mount, StrictMode scheduler, WKWebView 또는 GPU 검증이 아닌 계약 테스트**다.
+기존 5개 순수 함수 테스트, 실제 앱 StrictMode 검증과 이 7개 계약 테스트를 별개 근거로 유지한다.
+
+```sh
+cd apps/desktop
+node --experimental-vm-modules --experimental-strip-types --test tests/scene-lifecycle.test.mjs tests/scene-foundation.test.mjs tests/fake-provider.test.mjs tests/sidecar-protocol.test.mjs
+npm run typecheck --ignore-scripts
+```
+
+### 결과와 한계
+
+| 리뷰 항목 | 결과 / 구체적 검사 |
+|---|---|
+| 복원 이벤트 미도착 | PASS (계약): 명시적 restore 1회 뒤 resize/효과 flush 30회에도 lost, fallback, RAF0, canvas1. 자동 timer/retry 없음. unmount 후 소유 자원·listener·observer 해제 |
+| 복원 후 재초기화 실패 | PASS (계약): restored event → 새 generation의 getContext null. unavailable, fallback, live renderer0/RAF0. 반복 callback에도 canvas2에서 추가 생성 없음 |
+| unmount 이후 늦은 ResizeObserver | PASS (계약): disconnect 이전 보관한 실제 callback을 cleanup 뒤 직접 호출. resize/draw/report/state write 변화 없음 |
+| dispose 이후 늦은 restore event | PASS (계약): 제거 전 보관한 실제 event handler를 cleanup 뒤 호출. 재생성·report·state write 없음 |
+| setup/cleanup/setup stale callback | PASS (계약): 효과 순서 재현 후 이전 resize/restore/RAF 호출. 새 generation과 report 유지, live1/RAF1, 최대 동시 renderer/RAF 각1 |
+| 복원 뒤 이전 generation | PASS (계약): 정상 교체 후 이전 resize/restore callback이 새 Scene을 덮지 못함 |
+| 이전 session Promise | PASS (계약): 실제 useVisualState hook 소스의 새 setup 응답을 먼저 완료하고 이전 응답을 뒤에 완료. instance/epoch 유지. unmount 뒤 응답도 state write 없음 |
+| Runtime·승인 경계 | PASS (소스/계약 범위): renderer/SceneHost 검사 중 IPC 요청0, snapshot 불변. Adapter의 허용 호출은 get_runtime_session뿐. 실제 원장 상태의 복원 실패 전후 비교는 NOT_RUN |
+| 실제 WKWebView 복원 실패 | NOT_RUN: 기존 자체 canvas 진단은 정상 restore와 독립 초기화 실패를 지원하지만 복원 후 생성만 실패시키는 주입 지점은 없음. 이번에는 배포 코드·native 권한·CSP 변경 없이 위 경계에서 주입. 기존 정상 restore/Shader 실패 GUI 결과를 복원 실패 성공으로 대체하지 않음 |
+| 복원 실패 중 실제 Navigation/Dock | NOT_RUN: SceneHost 계약 테스트는 Shell Navigation/Dock을 실행하지 않음. 기존 Shader 실패에서 초안·탐색 확인은 별도 역사적 근거일 뿐 |
+| 실제 WebKit process crash / GPU 드라이버 자원 해제 | NOT_RUN / UNAVAILABLE: 공유 process 종료 없음. 객체 dispose 확인은 VRAM/RSS 증명이 아님 |
+
+최종 결과: Node 20 tests PASS (기존8 + 순수 Scene5 + 새 수명 계약7), TypeScript typecheck PASS.
+Rust19/production build/arm64 GUI는 위 기존 source에서의 PASS를 보존하며 이번에는 재실행하지 않았다.
+앱 소스·의존성·native·sidecar·빌드 설정이 그대로이므로 재패키징은 하지 않는다.
+Governance CI는 문서 정책 validator와 commit whitespace만 실행한다. TypeScript/Rust/Node/GUI 성공 근거가 아니다.
+
+### 앱 provenance와 보존
+
+- 검증된 앱 빌드 source: `4153e67a8e16c87bbd1a616866d4e896e144da6d` (리뷰 보완 커밋과 구분).
+- 앱: worktree 기준 `target/p1-2a-issue-32/release/bundle/macos/AETHER.app`.
+- bundle manifest SHA-256: `d52af0ce87f022092636a21b550395469ff043aed83fc3f46d177e28ad2bf756`.
+- 전체 bundle 파일을 다시 읽어 SHA-256 + 상대 경로로 정렬한 manifest와 기존 manifest가 일치하는지 확인한다.
+- 리뷰 보완 diff는 위 테스트 2개와 이 문서뿐이다. `apps/desktop/src`, package/lockfile, native/sidecar,
+  빌드 설정 및 scripts를 포함한 기존 tracked 파일 입력은 동일하다. 최신 HEAD에서 앱을 새로 빌드했다고 주장하지 않는다.
+- 기존 캡처 `target/p1-2a-issue-32/qa/4153e67/` 보존. 새 계약 테스트는 실제 화면 캡처를 만들지 않는다.
+- P0 Worktree·PR #34·Issue #27·측정 결과 변경 없음. 앱/GPU 실행·의존성 설치 없음.
+- 장시간 성능·전력·VoiceOver는 NOT_RUN, GPU timer/귀속 RSS/VRAM은 UNAVAILABLE로 유지한다.
+- 사용자 실제 앱 시각 승인 및 최신 HEAD squash merge 승인은 미완료. PR #33 Draft 유지.
