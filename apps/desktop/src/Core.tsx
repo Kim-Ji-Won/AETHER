@@ -12,13 +12,15 @@ export type CoreState = keyof typeof coreStates;
 // Renderer boundary for P1.2. CSS illustration, not a WebGL scene.
 export function Core({ state, lit, preview }: { state: CoreState; lit: boolean; preview: boolean }) {
   return <div className={`core-stage state-${state} ${lit ? 'is-lit' : ''}`}>
-    <span className="core-coordinate coordinate-left" aria-hidden="true">ORBITAL / 01</span>
+    <span className="core-coordinate coordinate-left" aria-hidden="true">ORBITAL ARRAY / A</span>
     <div className="core-art" aria-hidden="true">
+      <div className="halo-field" /><div className="instrument-ring" /><div className="instrument-ticks" />
+      <span className="core-reticle reticle-north" /><span className="core-reticle reticle-south" />
       <div className="core-grid" /><div className="orbit orbit-one" /><div className="orbit orbit-two" />
       <div className="orbit orbit-three" /><div className="orbit orbit-four" /><div className="plasma" />
       <div className="core-cross">+</div>
     </div>
-    <span className="core-coordinate coordinate-right" aria-hidden="true">NEURAL / 02</span>
+    <span className="core-coordinate coordinate-right" aria-hidden="true">NEURAL FIELD / B</span>
     <div className="core-caption"><span className="badge">{preview ? 'Preview · 시각 상태' : 'AI · 미연결'}</span>
       <p role="status">{state} <span> / {coreStates[state][0]}</span></p>
       <p className="muted">{coreStates[state][1]}</p>

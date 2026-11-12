@@ -27,7 +27,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
     <main id="workspace" className="workspace" tabIndex={-1}>
       <header className="page-header"><div><p className="eyebrow">AETHER / {current[2].toUpperCase()}</p><h1 ref={heading} tabIndex={-1}>{current[1]}</h1></div><span className="connection"><span className="status-light" /> AI 미연결</span></header>
       <section hidden={page !== 'main'} aria-label="Main">
-        <div className="hero"><div className="hero-heading"><p className="eyebrow">A QUIET KIND OF INTELLIGENCE</p><h2>가능성이 깨어나는 공간.</h2><p>당신의 다음 생각을 위한 새로운 인터페이스.</p></div>
+        <div className="hero"><div className="hud-rail" aria-hidden="true"><span>A / E — INTERFACE 01</span><span>CSS CORE STUDY</span></div><div className="hero-heading"><p className="eyebrow">A QUIET KIND OF INTELLIGENCE</p><h2>가능성이 깨어나는 공간.</h2><p>당신의 다음 생각을 위한 새로운 인터페이스.</p></div>
           <Core state={preview || 'offline'} lit={lit} preview={preview !== ''} />
           <div className="core-controls"><button className="primary" onClick={onLight} disabled={lit}>{lit ? '✓ 코어 점등됨' : '◈ 코어 점등'}</button><label>상태 미리보기<select value={preview} onChange={e => setPreview(e.target.value as CoreState | '')}><option value="">실제 연결 상태</option>{Object.entries(coreStates).map(([key, [label]]) => <option key={key} value={key}>Preview · {key} / {label}</option>)}</select></label></div>
         </div>
