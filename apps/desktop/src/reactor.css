@@ -1,0 +1,47 @@
+/* Reactor Chamber: one continuous environment with a shared focal point. */
+.shell { background: radial-gradient(ellipse at 70% 42%, #12354b55, transparent 65%), #050b13; }
+.sidebar { background: linear-gradient(180deg, #0b1622, #080f18 70%); border-color: #314353; }
+.workspace { margin: 0 auto; }
+.page-header { margin-bottom: 16px; }
+.cinematic { background: transparent; }
+.cinematic .hud-rail { border-color: #3c5668; color: #b0cbd6; }
+.cinematic .hero-heading { padding-top: 17px; }
+.cinematic .hero-heading h2 { font-size: 30px; letter-spacing: .35em; padding-left: .35em; font-weight: 300; margin-bottom: 5px; }
+.cinematic .hero-heading .eyebrow { font-size: 7px; letter-spacing: 2px; margin-bottom: 7px; }
+.cinematic .hero-heading p:last-child { font-size: 10px; }
+.reactor-scene { display: block; width: calc(100% + 60px); max-width: 900px; height: clamp(280px, 43vh, 420px); margin: 0 -30px -10px; color: var(--core, #9de9e5); pointer-events: none; mask-image: linear-gradient(transparent, #000 12%, #000 86%, transparent); }
+.reactor-energy { transform-origin: 360px 232px; opacity: .8; transition: opacity .6s; }
+.is-lit .reactor-energy { opacity: 1; }
+.cinematic .core-caption { position: relative; margin: 0 0 16px; }
+.cinematic .core-caption .badge { background: #07111d; border: 1px solid #416676; border-radius: 2px; font-size: 8px; padding: 5px 12px; }
+.cinematic .core-caption p { font-size: 13px; margin-top: 8px; }
+.cinematic .core-caption p.muted { color: #a9c2cf; }
+.input-dock { border-color: #50818d; border-left: 2px solid #b3f6e8; background: linear-gradient(100deg, #17384488, #0d1c2c); margin-top: 12px; }
+.presence-rail { font-size: 9px; margin-top: 12px; padding: 12px 0; }
+.cinematic .state-idle { --core: #9de9e5; }
+.cinematic .state-listening { --core: #81f6da; }
+.cinematic .state-thinking { --core: #c4b5ff; }
+.cinematic .state-speaking { --core: #9de6bf; }
+.cinematic .state-awaiting_approval { --core: #f0ce86; }
+.cinematic .state-executing { --core: #92c8ff; }
+.cinematic .state-error { --core: #ffa7a7; }
+.cinematic .state-offline { --core: #a3c8d3; }
+.state-awaiting_approval .reactor-structure, .state-error .reactor-structure { stroke-dasharray: 5 8; }
+.motion-on .is-lit:not(.state-error):not(.state-awaiting_approval) .reactor-energy { animation: reactor-breath 9s ease-in-out infinite; }
+@keyframes reactor-breath { 50% { transform: scale(1.025) rotate(2deg); } }
+@media(min-width:1100px) {
+  .reactor-scene { width: 100%; margin-left: auto; margin-right: auto; }
+}
+@media(max-width:700px) {
+  .reactor-scene { width: calc(100% + 36px); height: auto; margin: 6px -18px -9px; }
+  .cinematic .hero-heading h2 { font-size: 26px; }
+  .cinematic .core-caption { margin-top: 0; }
+}
+@media(max-width:450px) {
+  .reactor-scene { width: calc(100% + 24px); margin-left: -12px; margin-right: -12px; }
+  .cinematic .hud-rail { font-size: 5px; }
+  .presence-rail { line-height: 1.6; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .reactor-energy { animation: none !important; transition: none; }
+}

@@ -27,7 +27,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
     <main id="workspace" className="workspace" tabIndex={-1}>
       <header className="page-header"><div><p className="eyebrow">AETHER / {current[2].toUpperCase()}</p><h1 ref={heading} tabIndex={-1}>{current[1]}</h1></div><span className="connection"><span className="status-light" /> AI 미연결</span></header>
       <section hidden={page !== 'main'} aria-label="Main">
-        <div className="hero cinematic"><div className="hud-rail" aria-hidden="true"><span>A / E — PERSONAL INTELLIGENCE</span><span>LOCAL INTERFACE</span></div><div className="hero-heading"><p className="eyebrow">ORBITAL INTELLIGENCE / NEURAL FIELD</p><h2>당신의 다음 가능성.</h2><p>생각과 가능성이 만나는 하나의 공간.</p></div>
+        <div className="hero cinematic"><div className="hud-rail" aria-hidden="true"><span>A / E — PERSONAL INTELLIGENCE</span><span>LOCAL INTERFACE</span></div><div className="hero-heading"><p className="eyebrow">ORBITAL INTELLIGENCE / NEURAL FIELD</p><h2>AETHER</h2><p>당신의 다음 가능성을 위한 공간.</p></div>
           <Core state={preview || 'offline'} lit={lit} preview={preview !== ''} />
 
         </div>
