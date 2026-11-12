@@ -240,9 +240,7 @@ nav button { position: relative; justify-content: center; padding: 14px 10px; }
 .presence-workspace .main-stage { grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr); margin: 0 0 20px; gap: 0; }
 .presence-workspace .scene-viewport { padding: 32px; border-color: #99b9cc18; background: radial-gradient(ellipse at 50% 58%,#244b5e26,transparent 65%),linear-gradient(180deg,#07111a00,#15253922); }
 .scene-caption { position: absolute; top: 26px; left: 28px; }
-.scene-caption h2 { color: #b4c4d3; font-size: 18px; font-weight: 350; margin-top: 12px; }
 .scene-caption .eyebrow { color: #8399ad; font-size: 7px; }
-.scene-wordmark { display: block; color: #b9d0dc; font-size: 24px; font-weight: 300; letter-spacing: 9px; padding-left: 9px; }
 .scene-reserve { max-width: none; }
 .scene-reserve p { margin: 15px 0 0; color: #7e96a8; font-size: 9px; letter-spacing: 1px; }
 .presence-workspace .scene-boundary { bottom: 20px; font-size: 9px; letter-spacing: .3px; }
@@ -263,8 +261,6 @@ nav button { position: relative; justify-content: center; padding: 14px 10px; }
   .presence-workspace .main-stage { margin-bottom: 12px; }
   .presence-workspace .scene-viewport { padding: 18px; }
   .scene-caption { top: 20px; left: 16px; right: 12px; }
-  .scene-caption h2 { font-size: 16px; }
-  .scene-wordmark { font-size: 22px; letter-spacing: 6px; }
   .scene-reserve p { font-size: 8px; letter-spacing: .2px; }
   .presence-workspace .context-panel, .presence-workspace .status-area { padding: 16px; }
 }

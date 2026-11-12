@@ -40,8 +40,8 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
       {page === 'main' && <section className="main-page" aria-label="Main">
         <div className="main-stage">
           <section className="scene-viewport" aria-label="향후 3D AI Core 배치 영역">
-            <div className="scene-caption"><span className="eyebrow">PERSONAL INTELLIGENCE</span><h2>당신의 생각이 시작되는 곳.</h2></div>
-            <div className="scene-reserve"><span className="scene-wordmark">AETHER</span><p>Orbital Intelligence + Neural Plasma</p></div>
+            <div className="scene-caption"><span className="eyebrow">PERSONAL INTELLIGENCE</span></div>
+            <div className="scene-reserve"><p>Orbital Intelligence + Neural Plasma</p></div>
             <span className="scene-boundary">3D Scene 준비 중 · P1.2</span>
           </section>
           {status && <StatusArea close={closeStatus} />}
