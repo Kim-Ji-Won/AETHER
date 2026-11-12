@@ -44,18 +44,17 @@ export function ContextPanel({ open, close, navigate }: { open: boolean; close: 
   if (!open) return null;
   return <aside id="context-panel" className="context-panel glass" aria-label="Context">
     <div className="panel-heading"><h2>Context</h2><button ref={dismiss} onClick={close}>닫기</button></div>
-    <span className="eyebrow">YOUR WORKSPACE</span><h3>아직 시작된 대화가 없어요.</h3><p>AI Provider가 연결되면 이곳에서 대화의 맥락을 확인할 수 있습니다.</p>
-    <div className="context-item"><Icon name="memory" /><div>저장된 기억 없음<small>저장소 미연결</small></div></div>
-    <div className="context-item"><Icon name="command" /><div>AI 활동 기록 없음<small>실제 작업을 실행하지 않았습니다.</small></div></div>
+    <div className="context-item"><Icon name="main" /><div>대화 미연결<small>AI Provider 연결 준비 중</small></div></div>
+    <div className="context-item"><Icon name="memory" /><div>기억 저장소 미연결<small>데이터 확인 불가</small></div></div>
+    <div className="context-item"><Icon name="command" /><div>작업 기록 미지원<small>Fake Runtime 결과는 Command Center에서 확인</small></div></div>
     <button className="text-button" onClick={() => navigate('settings')}>연결 설정 보기 ↗</button>
-    <p className="context-note">현재 입력은 로컬 초안입니다.<br />어디에도 전송되지 않습니다.</p>
   </aside>;
 }
 export function CommandDock({ draft, setDraft }: { draft: string; setDraft: (text: string) => void }) {
   return <div className="command-dock-wrap">
     <div className="command-dock glass" role="group" aria-label="Command Dock">
       <button disabled aria-label="첨부 준비 중" title="첨부 준비 중"><Icon name="plus" /></button>
-      <label className="draft-field"><span className="sr-only">메시지 초안</span><textarea rows={1} maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} placeholder="어떤 생각을 함께할까요?" aria-describedby="draft-notice" /></label>
+      <label className="draft-field"><span className="sr-only">메시지 초안</span><textarea rows={1} maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} placeholder="메시지 초안 입력" aria-describedby="draft-notice" /></label>
       <button disabled aria-label="음성 입력 준비 중" title="음성 입력 준비 중"><Icon name="mic" /></button>
       <button className="send-button" disabled aria-label="전송 준비 중 · AI 미연결" title="AI Provider 연결 준비 중"><Icon name="send" /></button>
     </div>

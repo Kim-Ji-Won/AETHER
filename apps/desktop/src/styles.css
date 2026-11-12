@@ -76,7 +76,7 @@ nav button[aria-current] { color: #d3fff9; border-color: #7aa9b15c; background: 
 .draft-field textarea::placeholder { color: #b1c0ce; opacity: 1; }
 .dock-notice { font-size: 9px; margin: 7px 6px 0; color: #a1b4c4; }
 .page-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 8px 20px 2px; scrollbar-gutter: stable; }
-.section-intro { margin: 0 0 24px; }
+.section-intro { margin: 0 0 18px; }
 .section-intro h2 { margin: 15px 0 9px; font-size: 21px; font-weight: 400; }
 .section-intro p { margin-bottom: 0; }
 .badge { display: inline-block; border: 1px solid #5b718166; color: #b8c9d8; font-size: 8px; letter-spacing: 1px; padding: 5px 8px; border-radius: 5px; }
@@ -101,9 +101,9 @@ select { font-size: 11px; padding: 9px; max-width: 220px; }
 .native-version p { margin: 10px 0 0; }
 .search-label { display: block; font-size: 12px; }
 .search-label input { display: block; width: 100%; margin: 10px 0 18px; padding: 13px; }
-.empty-state { min-height: 280px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-.empty-state>svg { width: 42px; height: 42px; color: #98d3d9; margin-bottom: 25px; }
-.empty-state h2 { border: 0; padding: 0; font-size: 18px; margin-bottom: 14px; }
+.empty-state { min-height: 220px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+.empty-state>svg { width: 32px; height: 32px; color: #98d3d9; margin-bottom: 16px; }
+.empty-state h2 { border: 0; padding: 0; font-size: 16px; margin-bottom: 10px; }
 .footnote { font-size: 10px; text-align: center; }
 .setting-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 18px; }
 .setting-row+.setting-row { margin-top: 18px; border-top: 1px solid #566e7d44; }
@@ -245,7 +245,8 @@ nav button { position: relative; justify-content: center; padding: 14px 10px; }
 .scene-reserve p { margin: 15px 0 0; color: #7e96a8; font-size: 9px; letter-spacing: 1px; }
 .presence-workspace .scene-boundary { bottom: 20px; font-size: 9px; letter-spacing: .3px; }
 .presence-workspace .context-panel, .presence-workspace .status-area { grid-area: 1 / 1 / 2 / 2; position: absolute; top: 0; right: 0; bottom: 0; width: min(310px,100%); z-index: 3; overflow: auto; padding: 20px; border-radius: 14px; background: linear-gradient(125deg,#172333,#0b1421 70%,#1b2134) padding-box,linear-gradient(135deg,#9eabbc88,#526a7a33 35%,#b5bec666) border-box; }
-.presence-workspace .status-area { bottom: auto; max-height: 100%; display: block; }
+.presence-workspace .context-panel, .presence-workspace .status-area { bottom: auto; max-height: 100%; }
+.presence-workspace .status-area { display: block; }
 .status-area .panel-heading { display: flex; padding: 0 0 16px; border-top: 0; }
 .presence-workspace .status-area>div { padding: 16px 0; font-size: 11px; border-top: 1px solid #72849a25; }
 .presence-workspace .status-area strong { font-size: 13px; }
