@@ -33,8 +33,8 @@ export function SceneHost({ snapshot, motion, panelOpen, options, onReport }: {
   }, [snapshot?.instance, snapshot?.contextEpoch, options.quality, options.angle, options.fault, revision]);
   useEffect(() => { if (snapshot) engine.current?.update(snapshot,motion); }, [snapshot,motion]);
   const ready = !!snapshot && report?.health==='ready';
-  return <section className={`foundation ${panelOpen ? 'panel-open' : ''}`} aria-label="Scene Foundation Preview">
-    <div className="foundation-caption"><span className="badge">FOUNDATION PREVIEW · P1.2a</span><span>검증용 3D Mesh · 최종 AI Core 아님</span></div>
+  return <section className={`foundation ${panelOpen ? 'panel-open' : ''}`} aria-label="Living Neural Structure Preview">
+    <div className="foundation-caption"><span className="badge">NEURAL STRUCTURE · P1.2b PREVIEW</span><span>로컬 시각 실험 · 최종 Neural Plasma 아님</span></div>
     <div className="foundation-surface" ref={surface} />
     {!ready && <div className="foundation-fallback" role="status"><strong>DOM Scene Fallback</strong><p>{snapshot ? report?.reason || 'Renderer 확인 중' : 'Runtime Session 확인 불가'}</p><p>AI 미연결 · 로컬 초안과 탐색 사용 가능</p></div>}
     <div className="foundation-status"><span role="status">{ready ? 'WebGL2 · 실제 3D' : '3D 렌더 중지'} · AI 미연결{snapshot?.source==='preview' ? ` · Preview: ${snapshot.phase}` : ''}</span>

@@ -70,8 +70,8 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
       <section className="page-scroll" hidden={page !== 'command'} aria-label="Command Center">
         <div className="section-intro"><span className="badge">DEVELOPER DIAGNOSTICS</span><p>E4 Fake Runtime의 합성 진단입니다. 실제 AI나 컴퓨터 제어를 수행하지 않습니다.</p></div>
         <div className="panel"><div className="panel-heading"><h2>Runtime Console</h2><span className="badge">FAKE PROVIDER</span></div><FakeRun /></div>
-        <div className="panel"><div className="panel-heading"><h2>Scene Foundation</h2><span className="badge">P1.2a · PREVIEW</span></div>
-          <p>검증용 Mesh입니다. 최종 Orbital·Plasma·Bloom은 포함하지 않습니다. 아래 설정은 Main 진입 시 적용됩니다.</p>
+        <div className="panel"><div className="panel-heading"><h2>Neural Scene</h2><span className="badge">P1.2b · PREVIEW</span></div>
+          <p>유기적 신경망 구조의 로컬 시각 실험입니다. 실제 AI 처리·최종 Plasma·Bloom은 포함하지 않습니다. 아래 설정은 Main 진입 시 적용됩니다.</p>
           <div className="scene-settings">
             <label>Scene 품질<select value={quality} onChange={e => setQuality(e.target.value as Quality)}><option value="balanced">Balanced · 30fps 목표</option><option value="high">High · 60fps 목표</option></select></label>
             <label>Camera 시점<select value={angle} onChange={e => setAngle(Number(e.target.value))}><option value={-15}>−15°</option><option value={0}>정면</option><option value={15}>+15°</option></select></label>
@@ -85,7 +85,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
           <div className="core-controls"><button className="primary" onClick={onLight} disabled={lit}>{lit ? '✓ 코어 점등됨' : '◈ 코어 점등'}</button><label>상태 미리보기<select value={preview} onChange={e => setPreview(e.target.value as CoreState | '')}><option value="">실제 연결 상태</option>{Object.entries(coreStates).map(([key, [label]]) => <option key={key} value={key}>Preview · {key} / {label}</option>)}</select></label></div>
           <button className="text-button" aria-expanded={legacyPreview} onClick={() => setLegacyPreview(!legacyPreview)}>{legacyPreview ? '기존 2D Core 닫기' : '기존 2D Core 미리보기'}</button>
           {legacyPreview && <div className="legacy-preview"><Core state={preview || 'offline'} lit={lit} preview={preview !== ''} /></div>}
-          <p>Motion 정책: {policy.reason} · 마지막 자동 정지: {policy.lastPause}</p><p className="muted">현재 Core는 승인되지 않은 2D placeholder입니다. Main은 실제 3D Foundation이며 최종 Core는 후속 단계입니다.</p>
+          <p>Motion 정책: {policy.reason} · 마지막 자동 정지: {policy.lastPause}</p><p className="muted">현재 Core는 승인되지 않은 2D placeholder입니다. Main은 실제 3D Neural Structure Preview이며 최종 Plasma는 후속 단계입니다.</p>
         </div>
         <div className="panel"><div className="panel-heading"><h2>Native Diagnostics</h2><span className="badge">E3b · READ / APPROVE</span></div>{nativeChecks}</div>
       </section>
