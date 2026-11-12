@@ -889,3 +889,88 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   .motion-on .plasma, .motion-on .orbit-three { animation: none !important; }
 }
+
+/* Main is a continuous spatial canvas; experiments live in Diagnostics. */
+.cinematic {
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background:
+    radial-gradient(ellipse at 50% 53%, #11738b20, transparent 58%),
+    linear-gradient(90deg, transparent 49.9%, #6dc9cc0b 50%, transparent 50.1%);
+}
+.cinematic::before, .cinematic::after { display: none; }
+.cinematic .hud-rail { margin: 0; padding: 10px 0; font-size: 6px; border-color: #36566288; }
+.cinematic .hero-heading { padding-top: 23px; }
+.cinematic .hero-heading h2 { font-size: 25px; letter-spacing: -.9px; }
+.cinematic .hero-heading p:last-child { color: #91b6c7; font-size: 10px; }
+.cinematic .hero-heading .eyebrow { font-size: 6px; letter-spacing: 2.4px; }
+.cinematic .core-stage { --core: #9de9e5; }
+.cinematic .core-art { width: 380px; height: 340px; margin-top: 0; }
+.cinematic .halo-field {
+  width: 390px;
+  height: 330px;
+  background: radial-gradient(ellipse, #46cddd40 0%, #208dab26 30%, #123c6920 48%, transparent 70%);
+}
+.cinematic .instrument-ring { inset: 14px 34px; border-color: #6ac6dc66; }
+.cinematic .instrument-ticks { inset: 0 20px; opacity: .8; }
+.cinematic .core-grid { inset: 39px 59px; border-color: #5ad4e766; }
+.cinematic .orbit-one { width: 310px; height: 152px; border-color: #bdfbf0; opacity: .9; }
+.cinematic .orbit-two { width: 310px; height: 152px; border-color: #77bdf2; opacity: .9; }
+.cinematic .orbit-three { width: 254px; height: 254px; border-color: #79c9de88; border-left-color: #d4fff4; border-bottom-color: transparent; opacity: .8; }
+.cinematic .orbit-four { width: 208px; height: 208px; border-color: #a2e8e9; }
+.depth-disc { position: absolute; border: 1px solid #5494b133; border-radius: 50%; pointer-events: none; }
+.depth-disc-back { width: 320px; height: 116px; transform: translateY(61px) rotate(-17deg); border-top-color: #76c9dd66; }
+.depth-disc-front { width: 340px; height: 98px; transform: translateY(74px) rotate(14deg); border-bottom-color: #6dabc644; }
+.cinematic .plasma {
+  width: 164px;
+  height: 164px;
+  opacity: .9;
+  background:
+    radial-gradient(ellipse at 42% 35%, #e3fff5 0%, #a8f9ea 4%, #51e4e5aa 13%, transparent 35%),
+    radial-gradient(ellipse at 70% 66%, #4e8eff88 2%, transparent 40%),
+    conic-gradient(from 35deg, #10384c, #297e9199, #112c45, #44adbb88, #143a57, #10384c);
+  box-shadow: inset -13px -14px 28px #03101c, inset 5px 6px 20px #adfff06b, 0 0 30px #54e8d438, 0 0 65px #3297d035;
+}
+.cinematic .is-lit .plasma {
+  box-shadow: inset -13px -14px 28px #03101c, inset 5px 6px 20px #d2fff4a0, 0 0 32px #5fffe460, 0 0 85px #3297d04a;
+}
+.cinematic .plasma::before { inset: 8px 21px; border-width: 2px; border-color: #bdfff3aa; border-left-color: transparent; border-bottom-color: transparent; transform: rotate(-34deg); }
+.cinematic .plasma::after { inset: 28px 8px; border-color: #68b9f899; border-right-color: transparent; transform: rotate(37deg); }
+.energy-filament { position: absolute; width: 138px; height: 98px; border-radius: 50%; border: 1px solid #bcfff0aa; border-top-color: transparent; border-right-color: transparent; pointer-events: none; }
+.filament-a { transform: rotate(52deg); }
+.filament-b { width: 110px; height: 150px; transform: rotate(26deg); border-color: #8dccff66; border-left-color: transparent; }
+.cinematic .core-cross { color: #d7fff8; font-size: 9px; }
+.cinematic .core-caption { margin: -2px 0 22px; }
+.cinematic .core-caption .badge { background: transparent; border-width: 0 0 1px; letter-spacing: 1.5px; padding-bottom: 7px; }
+.cinematic .core-caption p { font-size: 14px; letter-spacing: 1px; }
+.cinematic .core-caption p.muted { font-size: 10px; letter-spacing: 0; }
+.cinematic .core-coordinate { color: #9acbd2; top: 120px; }
+.presence-rail { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; padding: 14px 0; border-top: 1px solid #2d4554; font-size: 9px; color: #9fb8c9; }
+.input-dock { background: linear-gradient(110deg, #183a4366, #10202d99); border-color: #476575; }
+.core-diagnostics { margin-bottom: 16px; }
+.core-diagnostics .core-controls { justify-content: flex-start; padding-left: 0; padding-right: 0; flex-wrap: wrap; }
+.cinematic .state-listening { --core: #82e8dd; }
+.cinematic .state-thinking { --core: #b1a9f3; }
+.cinematic .state-speaking { --core: #9be9c2; }
+.cinematic .state-awaiting_approval { --core: #eaca8a; }
+.cinematic .state-executing { --core: #8fc6ff; }
+.cinematic .state-error { --core: #f39d9d; }
+.cinematic .state-offline .orbit-three { border-left-color: #b3e1df; }
+.cinematic .state-awaiting_approval .orbit, .cinematic .state-error .orbit { border-color: var(--core); }
+@media (max-width: 700px) {
+  .cinematic .core-art { width: 280px; height: 290px; }
+  .cinematic .halo-field { width: 280px; height: 280px; }
+  .cinematic .instrument-ring { inset: 14px 9px; }
+  .cinematic .instrument-ticks { inset: 5px 0; }
+  .cinematic .core-grid { inset: 39px 34px; }
+  .cinematic .orbit-one, .cinematic .orbit-two { width: 260px; height: 130px; }
+  .cinematic .orbit-three { width: 220px; height: 220px; }
+  .cinematic .orbit-four { width: 185px; height: 185px; }
+  .cinematic .plasma { width: 140px; height: 140px; }
+  .depth-disc-back { width: 260px; height: 90px; }
+  .depth-disc-front { width: 270px; height: 80px; }
+  .cinematic .hero-heading h2 { font-size: 22px; }
+  .cinematic .hud-rail { font-size: 5px; letter-spacing: .5px; }
+  .core-diagnostics .core-controls { align-items: flex-start; }
+}

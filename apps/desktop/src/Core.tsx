@@ -14,11 +14,11 @@ export function Core({ state, lit, preview }: { state: CoreState; lit: boolean; 
   return <div className={`core-stage state-${state} ${lit ? 'is-lit' : ''}`}>
     <span className="core-coordinate coordinate-left" aria-hidden="true">ORBITAL ARRAY / A</span>
     <div className="core-art" aria-hidden="true">
-      <div className="halo-field" /><div className="instrument-ring" /><div className="instrument-ticks" />
+      <div className="halo-field" /><div className="depth-disc depth-disc-back" /><div className="depth-disc depth-disc-front" /><div className="instrument-ring" /><div className="instrument-ticks" />
       <span className="core-reticle reticle-north" /><span className="core-reticle reticle-south" />
       <div className="core-grid" /><div className="orbit orbit-one" /><div className="orbit orbit-two" />
       <div className="orbit orbit-three" /><div className="orbit orbit-four" /><div className="plasma" />
-      <div className="core-cross">+</div>
+      <div className="energy-filament filament-a" /><div className="energy-filament filament-b" /><div className="core-cross">+</div>
     </div>
     <span className="core-coordinate coordinate-right" aria-hidden="true">NEURAL FIELD / B</span>
     <div className="core-caption"><span className="badge">{preview ? 'Preview · 시각 상태' : 'AI · 미연결'}</span>

@@ -27,16 +27,17 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
     <main id="workspace" className="workspace" tabIndex={-1}>
       <header className="page-header"><div><p className="eyebrow">AETHER / {current[2].toUpperCase()}</p><h1 ref={heading} tabIndex={-1}>{current[1]}</h1></div><span className="connection"><span className="status-light" /> AI 미연결</span></header>
       <section hidden={page !== 'main'} aria-label="Main">
-        <div className="hero"><div className="hud-rail" aria-hidden="true"><span>A / E — INTERFACE 01</span><span>CSS CORE STUDY</span></div><div className="hero-heading"><p className="eyebrow">A QUIET KIND OF INTELLIGENCE</p><h2>가능성이 깨어나는 공간.</h2><p>당신의 다음 생각을 위한 새로운 인터페이스.</p></div>
+        <div className="hero cinematic"><div className="hud-rail" aria-hidden="true"><span>A / E — PERSONAL INTELLIGENCE</span><span>LOCAL INTERFACE</span></div><div className="hero-heading"><p className="eyebrow">ORBITAL INTELLIGENCE / NEURAL FIELD</p><h2>당신의 다음 가능성.</h2><p>생각과 가능성이 만나는 하나의 공간.</p></div>
           <Core state={preview || 'offline'} lit={lit} preview={preview !== ''} />
-          <div className="core-controls"><button className="primary" onClick={onLight} disabled={lit}>{lit ? '✓ 코어 점등됨' : '◈ 코어 점등'}</button><label>상태 미리보기<select value={preview} onChange={e => setPreview(e.target.value as CoreState | '')}><option value="">실제 연결 상태</option>{Object.entries(coreStates).map(([key, [label]]) => <option key={key} value={key}>Preview · {key} / {label}</option>)}</select></label></div>
+
         </div>
         <div className="input-dock"><span aria-hidden="true">＋</span><div>어떤 생각을 함께할까요?<small>텍스트·음성 입력은 준비 중입니다.</small></div><button disabled aria-label="음성 입력 준비 중">음성 · 준비 중</button></div>
-        <div className="summary-grid"><article className="panel"><p className="eyebrow">CORE</p><h3>{lit ? '점등 완료' : '첫 신호를 기다리는 중'}</h3><p>로컬 시각 효과 · AI 실행과 무관</p></article><article className="panel"><p className="eyebrow">ACTIVITY</p><h3>AI 활동 기록 없음</h3><button className="text-button" onClick={() => navigate('command')}>개발 진단 열기 <span aria-hidden="true">↗</span></button></article></div>
+        <div className="presence-rail"><span>AI 활동 기록 없음</span><span>기억 저장소 · 준비 중</span><button className="text-button" onClick={() => navigate('command')}>Developer Diagnostics ↗</button></div>
       </section>
       <section hidden={page !== 'command'} aria-label="Command Center">
         <div className="section-intro"><span className="badge">DEVELOPER DIAGNOSTICS</span><h2>실행의 흐름을 한눈에.</h2><p>아래 작업은 E4 Fake Runtime의 합성 진단입니다. 실제 AI나 컴퓨터 제어를 수행하지 않습니다.</p></div>
         <div className="panel runtime-panel"><div className="panel-title"><h2>Runtime Console</h2><span className="badge">FAKE PROVIDER</span></div><FakeRun /></div>
+        <div className="panel core-diagnostics"><div className="panel-title"><h2>Core Diagnostics</h2><span className="badge">LOCAL VISUAL / PREVIEW</span></div><p>점등과 상태 선택은 로컬 시각 실험입니다. 실제 AI 상태를 변경하지 않습니다.</p><div className="core-controls"><button className="primary" onClick={onLight} disabled={lit}>{lit ? '✓ 코어 점등됨' : '◈ 코어 점등'}</button><label>상태 미리보기<select value={preview} onChange={e => setPreview(e.target.value as CoreState | '')}><option value="">실제 연결 상태</option>{Object.entries(coreStates).map(([key, [label]]) => <option key={key} value={key}>Preview · {key} / {label}</option>)}</select></label></div><p className="muted">선택한 시각 상태는 Main에서 Preview로 표시됩니다.</p></div>
         <div className="panel native-panel"><div className="panel-title"><h2>Native Diagnostics</h2><span className="badge">E3b · READ / APPROVE</span></div>{nativeChecks}</div>
       </section>
       <section hidden={page !== 'memory'} aria-label="Memory Center">
