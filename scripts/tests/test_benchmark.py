@@ -1,4 +1,3 @@
-import copy
 import importlib.util
 from pathlib import Path
 import unittest
@@ -80,6 +79,11 @@ class BenchmarkTests(unittest.TestCase):
         s=b.summarize([row(None,status='NOT_RUN',failure_reason='NO_SAMPLE')])[0]
         self.assertIsNone(s['p50']);self.assertIsNone(s['min'])
         with self.assertRaises(ValueError):b.summarize([row(0,status='FAIL',failure_reason='INVALID')])
+
+    def test_different_fixtures_and_artifacts_never_share_quantiles(self):
+        groups=b.summarize([row(1),row(100,fixture='pause25'),row(1000,artifact_hash='f'*64)])
+        self.assertEqual(len(groups),3)
+        self.assertEqual(sorted(g['p50'] for g in groups),[1,100,1000])
 
     def test_cpu_cumulative_format_and_one_core_definition(self):
         self.assertEqual(b.cpu_seconds('1:02.50'),62.5)

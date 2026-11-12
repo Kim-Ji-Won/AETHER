@@ -91,12 +91,43 @@ seal은 기록된 빌드 직후의 입력 content hash와 bundle 파일 hash를 
 - `results.json`: trial_id, variant, source_sha, artifact_hash, fixture, environment_id, measurement, value, unit, status, failure_reason.
 - `summary.json`: SMOKE_ONLY, 전체 상태/Host exit, 항목별 n/total/min/max/p50/p95/실패/timeout/미수집 수. GUI는 별도 관찰해야 하며 parser 성공으로 GUI PASS를 만들지 않습니다.
 
-status는 PASS/FAIL/TIMEOUT/NOT_RUN/UNAVAILABLE/BLOCKED입니다. 누락·NaN·Infinity·음수·bool·extra key는 거부합니다. 성공값만 정렬해 nearest-rank `ceil(p×n)`번째를 선택합니다. n=0이면 통계도 null입니다. event당 처리시간 표본과 trial당 latency는 서로 다른 분모이며 같은 통계로 섞지 않습니다. n=1 smoke의 p95는 성능 추정이 아닙니다. 단위가 다른 값·variant·measurement는 그룹을 분리합니다.
+status는 PASS/FAIL/TIMEOUT/NOT_RUN/UNAVAILABLE/BLOCKED입니다. 누락·NaN·Infinity·음수·bool·extra key는 거부합니다. 성공값만 정렬해 nearest-rank `ceil(p×n)`번째를 선택합니다. n=0이면 통계도 null입니다. event당 처리시간 표본과 trial당 latency는 서로 다른 분모이며 같은 통계로 섞지 않습니다. n=1 smoke의 p95는 성능 추정이 아닙니다. source/artifact/fixture/variant/measurement/unit가 다른 표본은 그룹을 분리합니다. 동일 환경 조건인지 대조하는 후속 E5b gate도 필요합니다.
 
 raw artifact는 로컬 target에 보존하고 공개 Issue/PR에는 비식별 요약과 hash/명령/exit만 기록합니다. 화면 원본·사용자 입력·음성·키·개인 경로·호스트명·serial·환경 전체를 저장하지 않습니다. 정책 변경 없이 원본 자동 업로드 없음.
 
 ## 설치·권한 관찰 및 후속
 
-2026-11-12 현재 macOS 26.6 build 25G5043d arm64. Xcode의 xctrace 설치와 Time Profiler/Activity Monitor/Metal System Trace template를 확인했습니다. sandbox에서 cache 접근이 막힌 첫 조회는 실패했고, 허용된 외부 실행으로 목록 조회만 성공했습니다. 실제 Instruments recording/권한 요구는 NOT_RUN입니다. `powermetrics -n 1 -i 100`은 superuser 요구로 차단됐으며 sudo를 사용하지 않았습니다. `pmset -g therm`은 현재 OS에서 오류를 반환해 thermal은 UNAVAILABLE입니다. `ps` cumulative time/RSS는 자기 process 표본으로 확인합니다. WebKit renderer/helper의 정확한 app 귀속과 GPU·energy·wakeups는 후속 도구 검증이 필요합니다.
+2026-11-12 현재 macOS 26.6 build 25G5043d arm64. Xcode의 xctrace 설치와 Time Profiler/Activity Monitor/Metal System Trace template를 확인했습니다. sandbox에서 cache 접근이 막힌 첫 조회는 실패했고, 허용된 외부 실행으로 목록 조회만 성공했습니다. 실제 Instruments recording/권한 요구는 NOT_RUN입니다. `powermetrics -n 1 -i 100`은 superuser 요구로 차단됐으며 sudo를 사용하지 않았습니다. sandbox의 `pmset -g therm`은 오류로 UNAVAILABLE이었으며, 실제 smoke의 외부 실행에서는 경고 없음 응답을 받았습니다. 온도나 thermal pressure 수치를 수집한 것은 아닙니다. `ps` cumulative time/RSS는 자기 process 표본으로 확인합니다. WebKit renderer/helper의 정확한 app 귀속과 GPU·energy·wakeups는 후속 도구 검증이 필요합니다.
 
 E5b는 승인 후 warm-up 3회 제외와 A/B 각 30회 AB/BA 교차 latency를 실행합니다. E5c는 idle/foreground/hidden/minimized/active long60별 15분×3회 및 귀속 검증된 resource 계측입니다. E5d는 누락·실패·신뢰 한계와 동등 조건을 점검해 의사결정 자료를 만듭니다. 계측 on/off, 동기 stderr 및 기존 polling/log의 오버헤드도 같은 artifact에서 교차 측정해야 합니다. E5a는 오버헤드 수치를 추정하지 않습니다. 실제 renderer crash NOT_RUN은 그대로 남습니다. Runtime 선택·ADR ACCEPTED·다음 단계 실행·main 병합은 별도 승인입니다.
+
+
+## E5a 실제 smoke 관찰 · 2026-11-12
+
+계측 앱 source commit은 `a3ffea61a572fd99a38d135777a81a5b7dcfe0f8`이며 앱 입력 hash는 build manifest와 일치했습니다. 이후 Harness parser/분석과 문서만 보완했고 app 입력은 바뀌지 않았습니다. 최종 HEAD 대응은 Issue/PR에 별도로 기록합니다.
+
+| variant / fixture | trial_id | 원장·GUI | Host exit | smoke 판정 |
+|---|---|---|---|---|
+| A normal | `6cf13dec1c7d43c7aabe646db67acb9e` | seq 1→5, 25→50→75→FAKE_OK, terminal 1 | 0 | PASS |
+| B normal | `cecf40a29c604485ad510a4615d3cee5` | 같은 순서·terminal 1, child exit 0/reaped | 0 | PASS |
+| B pause25 cancel | `fe1de38964674e2c878ae7f8588193f1` | seq 1→2→3 cancelled, terminal 1, child reaped | 0 | PASS |
+| A pause25 + 추가 회귀 | `07d14261fb2e429883a50ea2e9f58fe2` | cancelled/terminal 1 뒤 승인 회귀 조작 중 90초 제한 | -15 | TIMEOUT |
+| A pause25 재검증 | `82767a3abe214544b7432f1245cb5b91` | seq 1→2→3 cancelled, terminal 1 | 0 | PASS |
+
+각 시험은 새 instance이며 run/request/generation=1입니다. 이벤트 ID와 UI instance/trace를 대조했습니다. GUI 자동화로 버튼과 Cmd+Q를 조작했습니다. timeout은 실제 지연 비교 실패가 아니라 operator 조작·회귀를 한 세션에 섞은 Harness deadline이며 원본 기록을 유지했습니다. 재검증이 앞의 timeout을 삭제하거나 PASS로 바꾸지 않습니다.
+
+**수집 경로 확인용 단일 표본**: A/B normal accept→첫 progress는 각각 106.133 / 254.797ms, accept→terminal은 410.206 / 577.351ms입니다. B spawn→ready는 144.829ms입니다. B cancel 확인→reap은 4.584ms이며 취소 Host 처리 시간은 A 재검증 0.001042ms, B 0.006ms입니다. 고정 timer·pipe·scheduling·GUI 도구와 부하를 포함하므로 우열·250ms 제안 예산 통과·통계적 p95 근거로 사용하지 않습니다.
+
+ps 수집도 작동했습니다. A normal Host 관찰 RSS max는 104005632 bytes, B normal Host 104120320 / Node 42811392 bytes입니다. 별도 WebKit 귀속은 UNAVAILABLE이므로 합산하지 않았습니다. 전역 WebKit helper 1개를 읽기 전용으로 관찰했지만 본 앱의 renderer라고 귀속하지 않았습니다. CPU는 GUI 조작 대기까지 포함하는 interval의 coarse 수치이며 workload CPU 비교가 아닙니다. 모든 smoke에서 BATTERY / 100% / discharging이 기록됐고 load average는 변동했습니다. 환경을 고정했다고 주장하지 않습니다.
+
+app 논리 크기 122070398 bytes, bundled Node 111534432 bytes. executable SHA-256 `7d7cfa83d2cbb88d9b019319120c4b895c45427c7b1ae9c0778ce92891a99d64`; 전체 bundle manifest SHA-256 `9aead5e26afaa248b009604b9b202f58972d66e65ade8d4f28c0a112cfc3a8b9`.
+
+기존 GUI 코어 점등·macOS 26·AX false·승인 취소 0→0을 확인했습니다. timeout 후 별도 계측 off 실행에서 GUI 자동화 승인 0→1을 확인했습니다. CLI도 `AETHER_NATIVE_MACOS_MAJOR=26`입니다. 실제 사람의 동의 안전성 검증이 아닙니다. 마지막 점검에서 E5a 번들 프로세스 잔존 0, 기존 app/DMG 13개 size/mtime 동일입니다.
+
+최종 parser로 기존 raw 이벤트·결과를 다시 검증할 수 있습니다. 앱은 다시 실행하지 않습니다.
+
+```sh
+python3 scripts/benchmark.py --validate-results
+```
+
+Rust 19 tests, Python Harness/parser 6 tests, Provider/Node 8 tests, TypeScript/Vite·arm64 packaging·governance·diff는 PASS입니다. 자세한 명령/exit·최종 CI는 Issue에 기록합니다. E4e 전체 lifecycle matrix를 재실행하지 않았고 관련 Rust/Node 회귀 및 smoke 정상 Quit만 확인했습니다. 실제 renderer crash, cold launch/paint, WebKit 귀속, Instruments recording, GPU/energy와 E5b/E5c 전체 반복은 NOT_RUN으로 남습니다.

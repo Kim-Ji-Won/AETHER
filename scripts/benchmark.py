@@ -132,13 +132,13 @@ def summarize(rows):
     groups = {}
     for row in rows:
         validate_result(row)
-        key = (row['variant'], row['measurement'], row['unit'])
+        key = tuple(row[k] for k in ('source_sha','artifact_hash','fixture','variant','measurement','unit'))
         groups.setdefault(key, []).append(row)
     result = []
-    for (variant, measurement, unit), group in sorted(groups.items()):
+    for (source, artifact, fixture, variant, measurement, unit), group in sorted(groups.items()):
         values = sorted(r['value'] for r in group if r['status'] == 'PASS')
         n = len(values)
-        result.append({'variant': variant, 'measurement': measurement, 'unit': unit, 'n': n,
+        result.append({'source_sha':source, 'artifact_hash':artifact, 'fixture':fixture, 'variant': variant, 'measurement': measurement, 'unit': unit, 'n': n,
                        'total': len(group), 'failures': sum(r['status'] == 'FAIL' for r in group),
                        'timeouts': sum(r['status'] == 'TIMEOUT' for r in group),
                        'uncollected': sum(r['status'] in ('NOT_RUN', 'UNAVAILABLE', 'BLOCKED') for r in group),
@@ -177,6 +177,10 @@ def check_trace(events, trial, variant, fixture, host_pid):
     if len(final) != 1 or final[0]['terminal_count'] != 1:
         raise ValueError('TERMINAL_COUNT')
     final = final[0]
+    if final['seq'] != (5 if fixture == 'normal' else 3):
+        raise ValueError('FINAL_SEQUENCE')
+    if any(e['outcome'] != ('succeeded' if e['seq']==5 else 'running') for e in frames):
+        raise ValueError('FRAME_STATE')
     if fixture == 'normal':
         if [e['progress'] for e in frames] != [0,25,50,75,75] or [e['terminal_count'] for e in frames] != [0,0,0,0,1] or final['outcome'] != 'succeeded' or final['result'] != 'FAKE_OK':
             raise ValueError('NORMAL_TRACE')
@@ -186,6 +190,9 @@ def check_trace(events, trial, variant, fixture, host_pid):
         children = [[e for e in events if e['event_type'] == kind] for kind in ('child_spawn', 'child_ready', 'child_reaped')]
         if any(len(group) != 1 for group in children) or len({g[0]['child_pid'] for g in children}) != 1 or not children[0][0]['child_pid']:
             raise ValueError('CHILD_LIFECYCLE')
+        positions = [events.index(accepted), *(events.index(g[0]) for g in children), events.index(final)]
+        if positions != sorted(positions) or len(set(positions)) != len(positions):
+            raise ValueError('CHILD_ORDER')
         if fixture == 'normal' and children[-1][0]['exit_code'] != 0:
             raise ValueError('CHILD_EXIT')
     return accepted, final, frames
@@ -389,17 +396,48 @@ def smoke(args, manifest, artifact):
     return 0 if not error else 1
 
 
+
+def validate_saved():
+    rows, trials = [], []
+    for directory in sorted((OUT/'results').iterdir()):
+        manifest = json.loads((directory/'manifest.json').read_text())
+        events = [validate_event(json.loads(line)) for line in (directory/'events.jsonl').read_text().splitlines()]
+        summary = json.loads((directory/'summary.json').read_text())
+        result = json.loads((directory/'results.json').read_text())
+        for item in result:
+            validate_result(item)
+            for key in ('trial_id','variant','source_sha','artifact_hash','fixture'):
+                if item[key] != manifest[key]:
+                    raise ValueError('SAVED_RESULT_IDENTITY')
+        if summary['status'] == 'PASS':
+            if summary['host_exit_code'] != 0 or not events:
+                raise ValueError('SAVED_EXIT')
+            check_trace(events, manifest['trial_id'], manifest['variant'], manifest['fixture'], events[0]['process_pid'])
+        elif summary['status'] not in ('FAIL','TIMEOUT'):
+            raise ValueError('SAVED_STATUS')
+        trials.append({'trial_id':directory.name,'status':summary['status']})
+        rows.extend(result)
+    if not trials:
+        raise ValueError('NO_SAVED_TRIALS')
+    save(OUT/'analysis.json', {'classification':'SMOKE_ONLY','trials':trials,'results':summarize(rows)})
+    print(json.dumps({'schema':'PASS','trials':trials,'analysis':'target/e5a-issue-25/analysis.json'}))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--dry-run', action='store_true')
     group.add_argument('--seal-build', action='store_true', help='After build only: tie bundle hashes to current app source inputs')
     group.add_argument('--smoke', action='store_true')
+    group.add_argument('--validate-results', action='store_true', help='Validate saved smoke evidence without launching an app')
     parser.add_argument('--variant', choices=sorted(VARIANTS), default='webview-a')
     parser.add_argument('--fixture', choices=['normal','pause25'],default='normal')
     args = parser.parse_args()
     if platform.system() != 'Darwin' or platform.machine() != 'arm64':
         raise ValueError('APPLE_SILICON_REQUIRED')
+    if args.validate_results:
+        return validate_saved()
     artifact = artifacts()
     head = command(['git','rev-parse','HEAD']).stdout.strip()
     inputs = sources()
