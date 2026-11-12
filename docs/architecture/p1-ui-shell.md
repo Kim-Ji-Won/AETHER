@@ -25,10 +25,10 @@ NEXT_PHASE_STARTED: NO
 - `ShellParts.tsx`: 실제 Navigation, StatusArea, ContextPanel, CommandDock. 모든 조작은 DOM/React이며 배경 이미지에 그린 컨트롤이 아니다.
 - `Core.tsx` / `ReactorScene.tsx`: 기존 2D placeholder와 상태 인터페이스. 3D 구현은 없음. 기존 SVG Geometry는 이번 Shell 재구성에서 변경하지 않는다.
 - `useMotion.ts`: 시스템 reduced-motion, 사용자 설정, 문서 숨김, 창 비활성, 미리보기 닫힘을 반영한다. native IPC·capability·timer를 추가하지 않는다.
-- `FakeRun.tsx`: 변경 없이 유지. 화면을 이동해도 마운트를 유지해 합성 작업을 중단하지 않는다. Rust 원장·승인 소유권은 변하지 않는다.
+- `FakeRun.tsx`: 실행 로직 유지, 결과·오류 문구만 정리. 화면을 이동해도 마운트를 유지해 합성 작업을 중단하지 않는다. Rust 원장·승인 소유권은 변하지 않는다.
 - `main.tsx`: 기존 코어 점등과 macOS/Accessibility/승인 카운터 핸들러를 Shell에 전달한다.
 
-Main은 Provider·기억 미연결, 음성 준비 중을 표시한다. Context는 실제 대화·활동 기록이 없음을 표시한다.
+Main은 Provider·기억 미연결, 음성 준비 중을 표시한다. Context는 대화 미연결·기억 저장소 미연결·작업 기록 미지원을 표시한다. 저장소 미연결을 실제 데이터 0건으로 해석하지 않는다.
 입력 초안은 Shell 메모리에만 남고 앱 종료 시 사라진다. 저장·로그·네트워크 전송은 하지 않는다.
 전송·음성·첨부·Provider 연결·기억 검색/관리는 준비 중이며 비활성화한다.
 Fake Runtime의 실행 상태를 실제 AI의 상태로 매핑하지 않는다.
@@ -45,7 +45,7 @@ Diagnostics에서 시각 Preview로 선택할 수 있다. 실제 Provider 연결
 
 - 900×760: 72px Navigation 레일, 작은 AI 연결 상태 버튼, 확장된 Scene 영역과 하단 Dock.
 - 400×680: 60px Navigation 레일. 탐색 이름을 펼칠 수 있다. Context와 연결 상세는 Scene 위의 닫을 수 있는 패널.
-  입력을 줄이지 않고 Dock 버튼을 다음 줄로 재배치한다. 다른 화면은 본문만 스크롤한다.
+  Dock 버튼을 한 줄로 유지하고 입력 영역만 가용 폭에 맞춘다. 다른 화면은 본문만 스크롤한다.
 - 넓은 창에서도 72px 레일을 유지한다. 메뉴 이름은 Hover/Focus로 표시하고, 펼침 버튼으로 216px 탐색 영역을 연다.
 - Context와 상태 상세는 모든 크기에서 기본 접힘이며 동시에 하나만 열린다. 내부 스크롤을 허용하고 Dock 영역을 침범하지 않는다.
 - Main은 작은 상단 조작 영역과 `minmax(0,1fr) / auto`의 Scene·Dock으로 구성한다. 큰 Main 제목과 Breadcrumb은 제거하되 숨겨진 h1은 유지한다.
@@ -139,6 +139,33 @@ GPU·배터리 수치 예산은 아직 미확정이며 P1.2 측정 계획 승인
 P6는 통합을 처음 시도하는 단계가 아니라 P1.2에서 검증한 공간·조명 체계의 최종 품질과 성능을 다듬는 단계다.
 사용자 콘셉트 선택, 실제 앱 시각 승인, 최신 HEAD 병합 승인은 각각 별도이며 자동 승인은 없다.
 
+## UI Copy Refinement & Slim Command Bar
+
+검토 기준 `a36be27c9092224815af8fc4a9c6185183bdb438`에서 기능·레이아웃을 유지한 수정이다.
+제품/기능 식별자는 영어, 상태·조작·안전 설명은 한국어를 사용한다. 감성 슬로건을 다른 광고 문구로 대체하지 않는다.
+
+| 영역 | 수정 전 | 수정 후 |
+|---|---|---|
+| Memory 소개 | LONG-TERM MEMORY / 기억이 연결되는 공간. | 중복 소개 제거, 검색과 저장소 상태로 바로 진입 |
+| Memory 데이터 | 아직 저장된 기억이 없어요. | 기억 저장소 미연결 / 저장된 데이터와 건수를 확인할 수 없습니다. |
+| Settings 소개 | YOUR ENVIRONMENT / 당신에게 맞는 환경. | 제거. AI Provider / Permissions / Appearance & Motion 유지 |
+| Command 소개 | 실행의 흐름을 한눈에. | 제거. DEVELOPER DIAGNOSTICS와 합성 진단 경계 유지 |
+| Context | 아직 시작된 대화가 없어요. / 저장된 기억 없음 / AI 활동 기록 없음 | 대화 미연결 / 기억 저장소 미연결·데이터 확인 불가 / 작업 기록 미지원 |
+| Dock | 어떤 생각을 함께할까요? | 메시지 초안 입력. 로컬 초안·전송/음성 준비 중·종료 시 소멸 안내 유지 |
+| Core Preview | 고요한 궤도 / 모이는 신호 등 | 상태 미리보기와 마이크 미사용·AI 미연결·작업 미실행을 명시 |
+| Runtime 결과 | 취소했어요. / 작업이 실패했어요. | 취소 완료 / 작업 실패와 재시도 가능 여부 |
+| terminal 결과 없음 | 결과 대기 | Rust terminalCount > 0이면 결과 없음. 진행 중에는 결과 대기 유지 |
+| Native | 권한이 있어요 / 없어요 / 확인하지 못했어요 | 권한 있음 / 없음 / 조회 실패. 조회·승인 로직 유지 |
+
+Memory Empty State의 최소 높이를 280→220px, 아이콘을 42→32px로 줄였다.
+Context는 내용 높이에 맞추고 Scene 높이 안에서 스크롤한다. 기존 패널 소재·탐색·본문 스크롤 구조는 유지한다.
+
+Slim Command Bar는 기본 높이 60px, 세로 padding 9px, 버튼 34px(최소 창 32px), 1px 실버·시안 경계다.
+입력은 40px 한 줄에서 최대 100px로 확장한다. Dock은 최대 120px이며 초과 내용은 textarea 내부에서 스크롤한다.
+초안 변경과 폭 변경에만 높이를 계산하고 ResizeObserver를 해제한다. 상시 애니메이션·측정 루프·의존성을 추가하지 않는다.
+한글·여러 줄·키보드·빈 초안 복귀를 실제 앱에서 검사했다. 미연결 버튼의 disabled/이름/이유와 Focus outline은 유지한다.
+Core 공유 조명·상태 반응은 P1.2 설계 범위이며 이번에는 구현하지 않았다.
+
 ## 검증 기록
 
 검증일: 2026-11-12. Apple Silicon macOS 26, 패키징된 arm64 앱의 WKWebView에서 확인했다.
@@ -147,8 +174,8 @@ CI governance는 실제 macOS 앱의 검증이나 사용자의 시각 승인을 
 
 ### 패키지와 검증 SHA
 
-- 최종 앱 소스: `b467b399c072bd21600b4eef8217e58b17347ee1`.
-- 실행 파일 SHA-256: `f42778e57ccf7415fb481b0ac69728199ccc66b100e9e411ab319d81a2c985a0`.
+- 최종 앱 소스: `95499c041b35c8a7964de122f8c4812803d7c855`.
+- 실행 파일 SHA-256: `e96d858193fee0c29994d1573dac811fcaaa6fa3df72c0cb25e1c53885821a4a`.
 - worktree 기준 앱 경로: `target/p1-ui-issue-28/release/bundle/macos/AETHER.app`.
 - `file .../Contents/MacOS/aether-desktop`: Mach-O 64-bit executable arm64.
 - 로컬 unsigned 검증 패키지다. 배포 서명·공증·다른 Mac 실행 검증은 NOT_RUN.
@@ -160,7 +187,7 @@ CI governance는 실제 macOS 앱의 검증이나 사용자의 시각 승인을 
 
 | 검사 | 결과 | 증거 / 한계 |
 |---|---|---|
-| `npm run build --prefix apps/desktop` | PASS | TypeScript, Vite, sidecar build. 최종 JS 247.40 kB / gzip 77.30 kB |
+| `npm run build --prefix apps/desktop` | PASS | TypeScript, Vite, sidecar build. 최종 JS 246.88 kB / gzip 77.07 kB |
 | `PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR="$PWD/target/p1-ui-issue-28" cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --offline` | PASS | Rust 19 tests. 이후 변경은 React/CSS이며 Rust 입력은 동일 |
 | desktop 디렉터리에서 `node --experimental-strip-types --test tests/fake-provider.test.mjs tests/sidecar-protocol.test.mjs` | PASS | Node 8 tests. 이후 변경은 React/CSS이며 Node 입력은 동일 |
 | `PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR="$PWD/target/p1-ui-issue-28" CARGO_NET_OFFLINE=true npm --prefix apps/desktop run tauri -- build --bundles app --no-sign -- --locked --offline` | PASS | 최종 소스 arm64 패키지 116.43 MiB, 종료 코드 0 |
@@ -177,7 +204,7 @@ CI governance는 실제 macOS 앱의 검증이나 사용자의 시각 승인을 
 | Context / 상태 상세 안전 영역 | PASS | 모든 크기 기본 접힘. Scene 영역에 한정, Dock과 분리. 열기·닫기·Escape·포커스 복귀 확인 |
 | 키보드 | PASS | Tab / Return 탐색, 제목 포커스, textarea 입력, Motion Space, Context Escape 및 토글로 포커스 복귀, 탐색 레일 키보드 닫기 |
 | 페이지 전환 AX 본문 | PASS | Command 경유 후 Memory·Settings 본문과 조작 요소 모두 노출. 실행 중 전환에서도 유지 |
-| 로컬 초안 | PASS | 한국어 입력 후 네 화면 이동·resize 후 유지. reload 시 초기화. 전송 기능은 disabled |
+| Slim Bar / 로컬 초안 | PASS | 기본 60px, 6줄 입력 시 최대 120px 및 내부 스크롤, 삭제 시 축소. 한글 입력·페이지 이동·resize 유지, reload 초기화. 전송 disabled |
 | macOS reduced-motion | PASS | 시스템 동작 줄이기 off → on 시 앱 정책 적용. 검사 후 off로 원복 |
 | 앱 숨김 / 최소화 | PASS | 선택형 Core preview 동작 허용 → 문서 숨김 정책 전환 → 복원. CSS pause 정책 확인. GPU 계측 결과는 아님 |
 | native 창 조작 | PASS | resize, zoom, 최소화, Raise 복원, Quit. native titlebar 유지 |
@@ -185,14 +212,16 @@ CI governance는 실제 macOS 앱의 검증이나 사용자의 시각 승인을 
 | macOS / Accessibility 조회 | PASS | macOS 26 / 권한 없음 응답. 권한을 요청하거나 확대하지 않음 |
 | E3b counter | PASS | native sheet 취소 후 0 유지, 시험 승인 후 1. 자동화 시험이며 사용자 디자인·병합 승인이 아님 |
 | WebView A / Node B 완료 | PASS | 각각 succeeded, seq 5, terminal 1. Node exit 0 / reaped |
-| WebView A / Node B 취소 | PASS | 25% 대기 후 cancelled, seq 3, terminal 1. Node reaped |
+| WebView A / Node B 취소 | PASS | 25% 대기 후 cancelled, seq 3, terminal 1, 결과 없음. Node reaped |
 | Runtime session / 오류 / reload | PASS | A 실행 중 기존 Lifecycle 메뉴 reload → 동일 instance, context 1→2, failed·terminal 1 표시 |
 | Quit / Node 수명 | PASS | Node 25% 대기 상태에서 앱 Quit, 기록한 앱·Node 자식 모두 종료 확인 |
 
-위 앱 회귀는 최종 `b467b39` 패키지에서 재확인했다. Rust 19개·Node 8개 테스트는 `a5de7df`에서 실행했고,
-후속 `b467b39` 변경은 Main 카피와 CSS 제거뿐으로 해당 테스트 입력은 동일하다.
-GUI 도구의 창 복원 후 조작이 중단되어 세션을 reset한 뒤 화면 이동·resize를 재검증했다.
-시스템 동작 줄이기는 off→on→off로 복원했다. 설정 앱 화면이나 개인 계정 정보는 캡처 자료에 포함하지 않는다.
+네 화면·세 창 크기·Dock·AX·Native·Fake Runtime·reload·Quit는 최종 `95499c0` 앱에서 재검증했다.
+reduced-motion / 숨김 / 최소화 / Preview 정책은 `1847495` 패키지에서 검사했다.
+이후 `95499c0`은 terminal 결과 문구 한 줄만 수정했으며 해당 Motion 코드·스타일은 동일하다.
+Rust 19개·Node 8개 테스트는 이번 카피 수정 중 실행했다. 이후 변경은 JSX 표시와 Dock/CSS이며 Rust·Node 테스트 입력은 동일하다.
+GUI 도구가 창 변화로 일부 조작을 중단했을 때 최신 AX 상태를 다시 읽고 확인했다. 실패한 조작 시도를 PASS로 집계하지 않는다.
+시스템 동작 줄이기는 off→on→off로 원복했다. 시스템 설정 화면이나 개인 계정 정보는 캡처 자료에 포함하지 않는다.
 
 ### 실제 화면과 비교
 
@@ -216,7 +245,10 @@ GUI 도구의 창 복원 후 조작이 중단되어 세션을 reset한 뒤 화�
 [키보드 Motion](assets/p1-ui-shell/keyboard-motion.jpg),
 [시스템 reduced-motion](assets/p1-ui-shell/system-reduced-motion.jpg),
 [reload 오류와 원장](assets/p1-ui-shell/runtime-error-reload.jpg).
-비교용 before 파일을 제외한 최종 화면은 모두 `b467b39` 패키지다.
+[넓은 창 Context](assets/p1-ui-shell/context-wide.jpg), [넓은 창 상태 상세](assets/p1-ui-shell/status-wide.jpg),
+[기본 창 여러 줄 입력](assets/p1-ui-shell/dock-multiline-900.jpg), [최소 창 여러 줄 입력](assets/p1-ui-shell/dock-multiline-400.jpg),
+[취소 결과](assets/p1-ui-shell/runtime-cancel.jpg), [Native 진단](assets/p1-ui-shell/native-diagnostics.jpg).
+비교용 before 파일과 `system-reduced-motion.jpg`(`1847495`)을 제외한 캡처는 모두 `95499c0` 패키지다.
 Retina 캡처는 논리 창 크기의 2배 픽셀이다.
 
 [이전 Reactor Main](assets/p1-ui-shell/before-reactor.jpg)은 이전 `b2c6c47` 시안의 비교 자료이며 최종 결과가 아니다.
@@ -226,21 +258,33 @@ Retina 캡처는 논리 창 크기의 2배 픽셀이다.
 Scene 공간을 확보한다. 금속 경계·유리 소재는 정적 레이어로 통일했다. Main 슬로건은 대체 문구 없이 제거했다.
 현재 Main의 빈 Scene은 의도적인 구현 경계다. 이 화면을 레퍼런스의 최종 3D 시각 품질을 달성한 결과로 평가하지 않는다.
 
+### 직전 PR 화면과 비교
+
+직전 검토 HEAD의 원본 캡처를 고정 링크로 보존한다. 아래 이미지는 이전 화면이며 새 결과가 아니다.
+
+| 화면 | 이전 PR #29 (`a36be27`) | 이번 변화 |
+|---|---|---|
+| Main 최소 | [이전 Dock](https://github.com/Kim-Ji-Won/AETHER/blob/a36be27c9092224815af8fc4a9c6185183bdb438/docs/architecture/assets/p1-ui-shell/main-400.jpg) | 2행 버튼 배치를 60px 한 줄 Bar로 변경, 초안만 제한 확장 |
+| Memory | [이전](https://github.com/Kim-Ji-Won/AETHER/blob/a36be27c9092224815af8fc4a9c6185183bdb438/docs/architecture/assets/p1-ui-shell/memory-900.jpg) | 소개 블록 제거·Empty State 축소·미연결 정확성 수정 |
+| Settings | [이전](https://github.com/Kim-Ji-Won/AETHER/blob/a36be27c9092224815af8fc4a9c6185183bdb438/docs/architecture/assets/p1-ui-shell/settings-900.jpg) | 소개 대신 세 설정 그룹을 바로 표시, 시스템 Motion 정보 유지 |
+| Command | [이전](https://github.com/Kim-Ji-Won/AETHER/blob/a36be27c9092224815af8fc4a9c6185183bdb438/docs/architecture/assets/p1-ui-shell/command-900.jpg) | 소개 대제목 제거, 진단 상태·결과 표현 통일 |
+
 ### 보안과 프로세스 정리
 
 Rust/Swift/Node runtime, IPC, capability, CSP, Node pin, manifest/lockfile, Benchmark Harness 변경 없음.
 새 UI 의존성·외부 폰트·원격 이미지·데이터 수집 없음. 참조 이미지 자체는 앱·저장소에 삽입하지 않았다.
 공유 Git metadata 외 P0 E5b worktree·계측·결과를 변경하지 않았다.
 
-2026-11-12 15:44 KST 프로세스 대조 결과:
+2026-11-12 16:20 KST 프로세스 대조 결과:
 
 | 항목 | 결과 | 확인 |
 |---|---|---|
-| P1 패키징 앱 | PASS | PID 50197, 시작 15:31:14, UI worktree bundle의 aether-desktop → Quit 후 없음 |
-| P1 Node 자식 | PASS | PID 52898, 시작 15:41:22, PPID 50197, 같은 bundle의 Resources/sidecar/node → Quit 후 없음 |
-| P1 GUI 작업자 | PASS | PID 52778/52779, 시작 15:40:18, GUI 세션 reset 후 부모 52776/52777 포함 없음 |
-| 빌드·테스트 | PASS | 실행 세션 전부 종료, worktree 실행 경로·cwd 대조에서 잔존 빌드/시험 없음 |
-| 사용자·P0 프로세스 | PASS | 종료 명령을 보내지 않음. 공유 도구 runtime과 현재 Codex 에이전트는 별도 소유권으로 보존 |
+| 최종 P1 패키징 앱 | PASS | PID 62036, 시작 16:14:46, UI worktree bundle의 aether-desktop → Quit 후 없음 |
+| 최종 P1 Node 자식 | PASS | PID 64175, 시작 16:19:10, PPID 62036, 같은 bundle의 Resources/sidecar/node → Quit 후 없음 |
+| 직전 검증 패키지 | PASS | 앱 59585(16:07:30), Node 60937(16:13:39) → Quit 후 없음 |
+| P1 GUI 작업자 | PASS | PID 58320/58321, 시작 16:03:26, GUI 세션 reset 후 부모 58318/58319 포함 없음 |
+| 빌드·테스트 | PASS | 실행 세션 전부 종료. ps 실행 경로와 lsof cwd 대조에서 잔존 P1 빌드/시험 없음 |
+| 사용자·P0 프로세스 | PASS | 종료 명령을 보내지 않음. 검증 전부터 존재한 공유 도구 runtime·현재 Codex 에이전트 보존 |
 
 P1_GUI_IDLE_READY_FOR_E5B
 
