@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 export const pages = [
   ['main', 'Main', 'Overview'], ['command', 'Command Center', 'Operations'],
@@ -19,16 +19,19 @@ export function Icon({ name }: { name: IconName }) {
 }
 export function Navigation({ page, navigate }: { page: Page; navigate: (page: Page) => void }) {
   const [expanded, setExpanded] = useState(false);
-  return <aside className={`sidebar ${expanded ? 'nav-expanded' : ''}`} onKeyDown={e => { if (e.key === 'Escape') setExpanded(false); }}>
+  const toggle = useRef<HTMLButtonElement>(null);
+  return <aside className={`sidebar ${expanded ? 'nav-expanded' : ''}`} onKeyDown={e => { if (e.key === 'Escape') { setExpanded(false); toggle.current?.focus(); } }}>
     <div className="brand"><span className="brand-mark" aria-hidden="true">Λ</span><span className="brand-name">AETHER<small>PERSONAL INTELLIGENCE</small></span></div>
-    <button className="nav-toggle" aria-label={expanded ? '탐색 이름 접기' : '탐색 이름 펼치기'} aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>☰</button>
-    <nav aria-label="주 탐색">{pages.map(([id, name]) => <button key={id} aria-label={name} title={name} aria-current={page === id ? 'page' : undefined} onClick={() => { navigate(id); setExpanded(false); }}><Icon name={id} /><span className="nav-name">{name}</span></button>)}</nav>
+    <button ref={toggle} className="nav-toggle" aria-label={expanded ? '탐색 이름 접기' : '탐색 이름 펼치기'} aria-expanded={expanded} onClick={e => { setExpanded(!expanded); e.currentTarget.focus(); }}>☰</button>
+    <nav aria-label="주 탐색">{pages.map(([id, name]) => <button key={id} aria-label={name} title={name} aria-current={page === id ? 'page' : undefined} onClick={() => { navigate(id); setExpanded(false); }}><Icon name={id} /><span className="nav-name">{name}</span><span className="nav-tooltip" aria-hidden="true">{name}</span></button>)}</nav>
     <div className="sidebar-bottom"><span className="status-dot" /> <span className="nav-name">LOCAL SHELL<small>P1.1 / Preview</small></span></div>
   </aside>;
 }
-export function StatusArea() {
-  return <aside className="status-area glass" aria-label="실제 연결 상태">
-    <p className="eyebrow">CONNECTION</p>
+export function StatusArea({ close }: { close: () => void }) {
+  const dismiss = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => { dismiss.current?.focus(); }, []);
+  return <aside id="status-panel" className="status-area glass" aria-label="실제 연결 상태">
+    <header className="panel-heading"><h2>연결 상태</h2><button ref={dismiss} onClick={close}>닫기</button></header>
     <div className="status-primary"><span className="status-dot" /><span>AI Provider<strong>연결 안 됨</strong></span></div>
     <div><Icon name="memory" /><span>기억 저장소<strong>미연결</strong></span></div>
     <div><Icon name="mic" /><span>음성 입력<strong>준비 중</strong></span></div>
@@ -36,11 +39,11 @@ export function StatusArea() {
   </aside>;
 }
 export function ContextPanel({ open, close, navigate }: { open: boolean; close: () => void; navigate: (page: Page) => void }) {
-  const [wide, setWide] = useState(() => matchMedia('(min-width: 1200px)').matches);
-  useEffect(() => { const media = matchMedia('(min-width: 1200px)'); const changed = () => setWide(media.matches); media.addEventListener('change', changed); return () => media.removeEventListener('change', changed); }, []);
-  if (!wide && !open) return null;
-  return <aside id="context-panel" className="context-panel glass" aria-label="Context" onKeyDown={e => { if (e.key === 'Escape') close(); }}>
-    <div className="panel-heading"><h2>Context</h2>{!wide && <button onClick={close}>닫기</button>}</div>
+  const dismiss = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => { if (open) dismiss.current?.focus(); }, [open]);
+  if (!open) return null;
+  return <aside id="context-panel" className="context-panel glass" aria-label="Context">
+    <div className="panel-heading"><h2>Context</h2><button ref={dismiss} onClick={close}>닫기</button></div>
     <span className="eyebrow">YOUR WORKSPACE</span><h3>아직 시작된 대화가 없어요.</h3><p>AI Provider가 연결되면 이곳에서 대화의 맥락을 확인할 수 있습니다.</p>
     <div className="context-item"><Icon name="memory" /><div>저장된 기억 없음<small>저장소 미연결</small></div></div>
     <div className="context-item"><Icon name="command" /><div>AI 활동 기록 없음<small>실제 작업을 실행하지 않았습니다.</small></div></div>

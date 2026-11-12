@@ -216,3 +216,55 @@ nav button[aria-current] { background: linear-gradient(110deg,#49717c55,#3a465c4
   .scene-boundary { position: absolute; font-size: 5px; }
   .command-dock { padding: 7px; border-radius: 17px; }
 }
+
+/* AI Presence First: controls frame a reserved scene, never imitate a renderer. */
+.shell { grid-template-columns: 72px minmax(0,1fr); }
+.sidebar { padding: 24px 10px 20px; gap: 18px; }
+.brand { justify-content: center; padding: 0 0 16px; }
+.brand-name, .sidebar .nav-name { display: none; }
+.nav-toggle { display: block; padding: 9px; background: transparent; border-color: #71869933; }
+nav button { position: relative; justify-content: center; padding: 14px 10px; }
+.nav-tooltip { display: none; position: absolute; left: calc(100% + 15px); top: 50%; transform: translateY(-50%); padding: 8px 12px; border: 1px solid #627787; border-radius: 8px; background: #152332; color: #edf8fc; white-space: nowrap; box-shadow: 0 8px 20px #0005; pointer-events: none; font-size: 12px; }
+.sidebar:not(.nav-expanded) nav button:is(:hover,:focus-visible) .nav-tooltip { display: block; }
+.sidebar-bottom { justify-content: center; padding: 0; }
+.nav-expanded { width: 216px; background: linear-gradient(140deg,#1a2838,#0b1421); box-shadow: 18px 0 35px #0007; }
+.nav-expanded .brand-name, .nav-expanded .nav-name { display: block; }
+.nav-expanded nav button { justify-content: flex-start; }
+.nav-expanded .nav-toggle { align-self: flex-start; }
+.presence-workspace { padding: 20px 28px 16px; }
+.presence-header { justify-content: flex-end; margin-bottom: 12px; }
+.presence-header .header-actions { flex-direction: row; align-items: center; gap: 10px; }
+.presence-header .context-toggle { display: flex; }
+.status-toggle { font-size: 10px; }
+.presence-workspace .main-page { grid-template-rows: minmax(0,1fr) auto; }
+.presence-workspace .main-stage { grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr); margin: 0 0 20px; gap: 0; }
+.presence-workspace .scene-viewport { padding: 32px; border-color: #99b9cc18; background: radial-gradient(ellipse at 50% 58%,#244b5e26,transparent 65%),linear-gradient(180deg,#07111a00,#15253922); }
+.scene-caption { position: absolute; top: 26px; left: 28px; }
+.scene-caption h2 { color: #b4c4d3; font-size: 18px; font-weight: 350; margin-top: 12px; }
+.scene-caption .eyebrow { color: #8399ad; font-size: 7px; }
+.scene-wordmark { display: block; color: #b9d0dc; font-size: 24px; font-weight: 300; letter-spacing: 9px; padding-left: 9px; }
+.scene-reserve { max-width: none; }
+.scene-reserve p { margin: 15px 0 0; color: #7e96a8; font-size: 9px; letter-spacing: 1px; }
+.presence-workspace .scene-boundary { bottom: 20px; font-size: 9px; letter-spacing: .3px; }
+.presence-workspace .context-panel, .presence-workspace .status-area { grid-area: 1 / 1 / 2 / 2; position: absolute; top: 0; right: 0; bottom: 0; width: min(310px,100%); z-index: 3; overflow: auto; padding: 20px; border-radius: 14px; background: linear-gradient(125deg,#172333,#0b1421 70%,#1b2134) padding-box,linear-gradient(135deg,#9eabbc88,#526a7a33 35%,#b5bec666) border-box; }
+.presence-workspace .status-area { bottom: auto; max-height: 100%; display: block; }
+.status-area .panel-heading { display: flex; padding: 0 0 16px; border-top: 0; }
+.presence-workspace .status-area>div { padding: 16px 0; font-size: 11px; border-top: 1px solid #72849a25; }
+.presence-workspace .status-area strong { font-size: 13px; }
+.presence-workspace .status-area svg, .presence-workspace .status-area .status-dot { display: inline-block; }
+.presence-workspace .status-footnote { display: block; }
+.presence-workspace .command-dock-wrap { width: 100%; max-width: 1000px; justify-self: center; }
+@media(max-width:700px) {
+  .shell { grid-template-columns: 60px minmax(0,1fr); }
+  .sidebar { padding: 18px 7px; }
+  .presence-workspace { padding: 16px 12px 12px; }
+  .presence-header { margin-bottom: 12px; }
+  .presence-header .header-actions { gap: 7px; }
+  .presence-workspace .main-stage { margin-bottom: 12px; }
+  .presence-workspace .scene-viewport { padding: 18px; }
+  .scene-caption { top: 20px; left: 16px; right: 12px; }
+  .scene-caption h2 { font-size: 16px; }
+  .scene-wordmark { font-size: 22px; letter-spacing: 6px; }
+  .scene-reserve p { font-size: 8px; letter-spacing: .2px; }
+  .presence-workspace .context-panel, .presence-workspace .status-area { padding: 16px; }
+}
