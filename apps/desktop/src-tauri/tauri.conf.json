@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "label": "main", "title": "AETHER", "width": 900, "height": 760, "minWidth": 400, "minHeight": 680, "center": true, "backgroundColor": "#07101e" }],
+    "windows": [{ "label": "main", "title": "AETHER", "width": 900, "height": 760, "minWidth": 400, "minHeight": 680, "center": true, "theme": "Dark", "backgroundColor": "#07101e" }],
     "security": {
       "capabilities": ["main-native-version", "main-accessibility-status", "main-counter-approval", "main-fake-run"],
       "csp": "default-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'"

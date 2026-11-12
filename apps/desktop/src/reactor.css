@@ -1,0 +1,23 @@
+/* Existing unapproved 2D renderer, fitted to the P1.2 scene slot.
+   Geometry/artwork is intentionally unchanged; P1.2 replaces this renderer. */
+.core-stage { height: 100%; min-height: 0; display: flex; flex-direction: column; text-align: center; --core: #a3c8d3; }
+.reactor-scene { display: block; width: 100%; flex: 1; min-height: 0; color: var(--core); pointer-events: none; mask-image: linear-gradient(transparent, #000 12%, #000 86%, transparent); }
+.reactor-energy { transform-origin: 360px 226px; opacity: .78; transition: opacity .6s; }
+.is-lit .reactor-energy { opacity: 1; }
+.core-caption { flex-shrink: 0; margin: 0 0 10px; }
+.core-caption .badge { font-size: 8px; border-color: var(--core); background: #091522; }
+.core-caption p { margin: 7px 0 0; font-size: 13px; color: #dae7ef; }
+.core-caption p span { font-size: 11px; color: #a8becc; }
+.core-caption p.muted { font-size: 10px; margin-top: 3px; color: #a9c2cf; }
+.state-idle { --core: #9de9e5; }
+.state-listening { --core: #81f6da; }
+.state-thinking { --core: #c4b5ff; }
+.state-speaking { --core: #9de6bf; }
+.state-awaiting_approval { --core: #f0ce86; }
+.state-executing { --core: #92c8ff; }
+.state-error { --core: #ffa7a7; }
+.state-offline { --core: #a3c8d3; }
+.state-awaiting_approval .reactor-structure, .state-error .reactor-structure { stroke-dasharray: 5 8; }
+.motion-on .is-lit:not(.state-error):not(.state-awaiting_approval) .reactor-energy { animation: reactor-breath 9s ease-in-out infinite; }
+@keyframes reactor-breath { 50% { transform: scale(1.025) rotate(2deg); } }
+@media(prefers-reduced-motion:reduce) { .reactor-energy { animation: none !important; transition: none; } }
