@@ -51,10 +51,28 @@ export function ContextPanel({ open, close, navigate }: { open: boolean; close: 
   </aside>;
 }
 export function CommandDock({ draft, setDraft }: { draft: string; setDraft: (text: string) => void }) {
+  const input = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const field = input.current;
+    if (!field) return;
+    const resize = () => {
+      field.style.height = '0px';
+      const fullHeight = field.scrollHeight + 2;
+      field.style.height = `${Math.min(100, Math.max(40, fullHeight))}px`;
+      field.style.overflowY = fullHeight > 100 ? 'auto' : 'hidden';
+    };
+    resize();
+    let width = field.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (field.clientWidth !== width) { width = field.clientWidth; resize(); }
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [draft]);
   return <div className="command-dock-wrap">
     <div className="command-dock glass" role="group" aria-label="Command Dock">
       <button disabled aria-label="첨부 준비 중" title="첨부 준비 중"><Icon name="plus" /></button>
-      <label className="draft-field"><span className="sr-only">메시지 초안</span><textarea rows={1} maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} placeholder="메시지 초안 입력" aria-describedby="draft-notice" /></label>
+      <label className="draft-field"><span className="sr-only">메시지 초안</span><textarea ref={input} rows={1} maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} placeholder="메시지 초안 입력" aria-describedby="draft-notice" /></label>
       <button disabled aria-label="음성 입력 준비 중" title="음성 입력 준비 중"><Icon name="mic" /></button>
       <button className="send-button" disabled aria-label="전송 준비 중 · AI 미연결" title="AI Provider 연결 준비 중"><Icon name="send" /></button>
     </div>
