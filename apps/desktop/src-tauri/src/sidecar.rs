@@ -71,6 +71,7 @@ pub fn run_created(resource_dir: PathBuf, created: Snapshot) -> Reply {
     let result = exchange(&node, &entry, &dir, &created, timeout, &mut report);
     fake_run::finish_node(created.1, report.reaped || report.pid == 0);
     let snapshot = fake_run::snapshot()?.ok_or("Missing run")?;
+    crate::measurement::record("run_final", Some(&snapshot), None, Some(report.pid), report.exit);
     if snapshot.1 == created.1 && snapshot.4 == "cancelled" && report.reaped {
         return Ok((snapshot, report.pid, report.exit.unwrap_or(-1)));
     }
@@ -85,6 +86,7 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
     let mut child = ChildGuard(child);
     let pid = child.0.id();
     report.pid = pid;
+    crate::measurement::record("child_spawn", Some(created), None, Some(pid), None);
     let started = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "Clock unavailable")?.as_millis();
     eprintln!("AETHER_SIDECAR pid={pid} parent={} started_unix_ms={started} executable=Contents/Resources/sidecar/node run_id={} instance={} generation={}", std::process::id(), created.1, crate::lifecycle::instance(), created.3);
     let mut stdin = child.0.stdin.take().ok_or("Missing child stdin")?;
@@ -126,6 +128,7 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
             || ready["pid"].as_u64() != Some(pid as u64) || ready["node_version"] != "v22.21.0" || ready["arch"] != "arm64" {
             return Err("Invalid Node handshake".into());
         }
+        crate::measurement::record("child_ready", Some(created), None, Some(pid), None);
         let mut terminal = None;
         for seq in 1..=5 {
             let frame = Frame::parse(&body(receive()?)?)?;
@@ -178,6 +181,7 @@ fn exchange(node: &Path, entry: &Path, cwd: &Path, created: &Snapshot,
         eprintln!("AETHER_SIDECAR pid={pid} stopped=true reaped={} exit={:?} stderr_bytes={stderr_bytes}", report.reaped, report.exit);
     }
     cleanup?;
+    crate::measurement::record("child_reaped", Some(created), None, Some(pid), report.exit);
     result
 }
 

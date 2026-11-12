@@ -4,6 +4,7 @@ mod approval;
 mod fake_run;
 mod sidecar;
 mod lifecycle;
+mod measurement;
 
 #[tauri::command]
 async fn start_node_fake_run(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(fake_run::Snapshot, u32, i32), String> {
@@ -30,7 +31,11 @@ fn submit_fake_event(request: tauri::ipc::Request<'_>) -> Result<fake_run::Snaps
 }
 
 #[tauri::command]
-fn get_runtime_session() -> Result<(String, u32, bool), &'static str> { lifecycle::session() }
+fn get_runtime_session() -> Result<(String, u32, bool), &'static str> {
+    let session = lifecycle::session()?;
+    measurement::record("session_ready", None, None, None, None);
+    Ok(session)
+}
 
 #[tauri::command]
 fn get_fake_run() -> Result<Option<fake_run::Snapshot>, &'static str> {
@@ -63,6 +68,7 @@ fn main() {
         return;
     }
 
+    measurement::init();
     eprintln!("AETHER_INSTANCE instance={} pid={} time_ms={} executable=Contents/MacOS/aether-desktop", lifecycle::instance(), std::process::id(), lifecycle::now());
     tauri::Builder::default()
         .setup(|app| { lifecycle::install_menu(app.handle())?; Ok(()) })
