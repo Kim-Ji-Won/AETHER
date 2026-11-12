@@ -19,11 +19,12 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
     heading.current?.focus();
   }, [page]);
   function navigate(next: Page) { setPage(next); setContext(false); }
+  function closeContext() { setContext(false); document.querySelector<HTMLButtonElement>('.context-toggle')?.focus(); }
   const current = pages.find(item => item[0] === page)!;
   return <div className={`shell ${policy.active ? 'motion-on' : 'motion-off'}`}>
     <a className="skip-link" href="#workspace">본문으로 건너뛰기</a>
     <Navigation page={page} navigate={navigate} />
-    <main id="workspace" className="workspace" tabIndex={-1}>
+    <main id="workspace" className="workspace" tabIndex={-1} onKeyDown={e => { if (e.key === 'Escape' && context) closeContext(); }}>
       <header className="page-header"><div><p className="eyebrow">WORKSPACE / {current[2].toUpperCase()}</p><h1 ref={heading} tabIndex={-1}>{current[1]}</h1></div>
         <div className="header-actions"><span className="connection"><span className="status-dot" /> AI 미연결</span>{page === 'main' && <button className="context-toggle" aria-expanded={context} aria-controls={context ? 'context-panel' : undefined} onClick={() => setContext(!context)}><Icon name="context" /><span>Context</span></button>}</div>
       </header>
@@ -40,7 +41,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
             </div>
             <span className="scene-boundary">ORBITAL INTELLIGENCE <span>+ NEURAL PLASMA</span></span>
           </section>
-          <ContextPanel open={context} close={() => { setContext(false); document.querySelector<HTMLButtonElement>('.context-toggle')?.focus(); }} navigate={navigate} />
+          <ContextPanel open={context} close={closeContext} navigate={navigate} />
         </div>
         <CommandDock draft={draft} setDraft={setDraft} />
       </section>}
