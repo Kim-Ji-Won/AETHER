@@ -152,7 +152,7 @@ export function FakeRun() {
           <p>{run.variant === 'node-b' ? 'Node B' : 'WebView A'} · run_id: {run.run_id} · {run.state} · {run.progress}%</p>
           <p>v{run.version} · request_id: {run.request_id} · generation: {run.generation} · seq: {run.seq}</p>
           <p>Rust 확인: {run.trace.map(([seq, type, value]) => `${seq}:${type}${value ? ` ${value}` : ''}`).join(' → ')}</p>
-          <p>{run.result || '결과 대기'} · terminal: {run.terminalCount}{childResult ? ` · ${childResult}` : ''}</p>
+          <p>{run.result || (run.terminalCount > 0 ? '결과 없음' : '결과 대기')} · terminal: {run.terminalCount}{childResult ? ` · ${childResult}` : ''}</p>
           {run.state === 'running' && run.progress === 25 && run.mode === 'pause25' && <p>25% 대기 중 · 취소하려면 작업 취소를 선택하세요.</p>}
           {run.state === 'cancel_requested' && <p>취소 요청 확인 · 실행 정리 중</p>}
           {run.state === 'cancelled' && <p>취소 완료 · 새 작업 실행 가능</p>}
