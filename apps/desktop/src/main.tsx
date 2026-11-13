@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import './styles.css';
 import { Shell } from './Shell';
+import { ParticleLab } from './particle-lab/ParticleLab';
 
 function App() {
   const [lit, setLit] = useState(false);
@@ -90,4 +91,9 @@ function App() {
         </div>} />;
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+function Entry() {
+  const [lab, setLab] = useState(import.meta.env.VITE_AETHER_VISUAL_LAB === 'particle');
+  return lab ? <ParticleLab exit={() => setLab(false)} /> : <App />;
+}
+
+createRoot(document.getElementById('root')!).render(<StrictMode><Entry /></StrictMode>);

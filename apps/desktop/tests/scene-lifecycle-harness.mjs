@@ -100,11 +100,11 @@ export async function harness(output) {
     },
   };
   function jsx(type, props) {
-    if (props?.ref && props.className === 'foundation-surface') props.ref.current = surface;
+    if (props?.ref && ['foundation-surface','lab-canvas'].includes(props.className)) props.ref.current = surface;
     return { type, props };
   }
   const context = vm.createContext({ document, window, ResizeObserver: Observer, matchMedia: () => media,
-    performance, console,
+    performance, console, crypto: globalThis.crypto,
     requestAnimationFrame(fn) { const id = ++nextRAF; raf.set(id, fn); maxRAF = Math.max(maxRAF, raf.size); return id; },
     cancelAnimationFrame(id) { raf.delete(id); },
     setTimeout() { throw new Error('Unexpected retry timer'); },
@@ -138,6 +138,9 @@ export async function harness(output) {
   }
   return {
     exported, canvases, observers, requests, surface, raf,
+    setReduced(value) { media.matches=value; media.emit('change'); },
+    setHidden(value) { document.hidden=value; document.emit('visibilitychange'); },
+    tick(time) { const callbacks=[...raf.values()];raf.clear();callbacks.forEach(fn=>fn(time)); },
     failNextContext: () => { failNextContext = true; },
     silenceRestore: () => { restoreMode = 'silent'; },
     flush() {
