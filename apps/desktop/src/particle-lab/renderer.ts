@@ -4,12 +4,12 @@ import {renderPolicy} from '../scene/framing';
 import {VisualGate,type VisualSnapshot} from '../scene/visual-state';
 import {createMotion,type ParticlePhase} from './motion';
 import {createParticles} from './particles';
-export interface LabOptions {quality:'balanced'|'high';fault:'none'|'shader'|'fallback';motion:boolean;gain:number}
+export interface LabOptions {quality:'balanced'|'high';fault:'none'|'shader'|'fallback';motion:boolean;gain:number;forward?:boolean}
 export interface LabReport {
  health:'ready'|'lost'|'unavailable'|'disposed'; reason:string; generation:number;
  frames:number; raf:number; live:number; created:number; disposed:number;
  particles:number; draws:number; bytes:number; dpr:number; width:number; height:number;
- time:number; level:number; raw:number; inputLevel:number; outputLevel:number;
+ forwardEnabled:boolean; time:number; level:number; raw:number; inputLevel:number; outputLevel:number;
  frameP50:number|null;frameP95:number|null;cpuP50:number|null;cpuP95:number|null;samples:number;lossSupported:boolean;
  gpuTime:'UNAVAILABLE';vram:'UNAVAILABLE';rss:'UNAVAILABLE';
 }
@@ -24,11 +24,11 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
  let renderer:THREE.WebGLRenderer|null=null,particles:ReturnType<typeof createParticles>|null=null;
  let gl:WebGL2RenderingContext|null=null,loss:WEBGL_lose_context|null=null;
  let dead=false,lost=false,counted=false,available=false,raf=0,frames=0,draws=0,last=0,next=0,lastPublish=0;
- let width=1,height=1,dpr=1,motion=options.motion,gain=options.gain,phase:ParticlePhase='idle';
+ let width=1,height=1,dpr=1,motion=options.motion,gain=options.gain,phase:ParticlePhase='idle',forward=options.forward??true;
  let health:LabReport['health']='unavailable',reason='초기화 중',sample=clock.step(0,phase,gain);
  const intervals:number[]=[],cpu:number[]=[];
  const stats=():LabReport=>({health,reason,generation,frames,raf:raf?1:0,live:audit.live,created:audit.created,disposed:audit.disposed,
-   particles:particles?.count??0,draws,bytes:particles?.bytes??0,dpr,width,height,...sample,
+   particles:particles?.count??0,draws,bytes:particles?.bytes??0,dpr,width,height,forwardEnabled:forward,...sample,
    frameP50:percentile(intervals,.5),frameP95:percentile(intervals,.95),cpuP50:percentile(cpu,.5),cpuP95:percentile(cpu,.95),samples:intervals.length,lossSupported:!!loss,gpuTime:'UNAVAILABLE',vram:'UNAVAILABLE',rss:'UNAVAILABLE'});
  function stop(){if(raf)cancelAnimationFrame(raf);raf=0;last=0;next=0;}
  function release(){stop();particles?.dispose();particles=null;scene.clear();renderer?.dispose();renderer=null;
@@ -43,6 +43,8 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
      particles.uniforms.uTime.value=sample.time;particles.uniforms.uLevel.value=sample.level;
      particles.uniforms.uThinking.value=sample.thinking;particles.uniforms.uRadius.value=sample.radius;
      particles.uniforms.uSpeaking.value=sample.speakingWeight;
+     particles.uniforms.uForwardFast.value=sample.forwardFast;particles.uniforms.uForwardSlow.value=sample.forwardSlow;
+     particles.uniforms.uForwardEnabled.value=forward?1:0;
      renderer.render(scene,camera);cpu.push(performance.now()-start);if(cpu.length>1200)cpu.shift();
      if(advance&&last){intervals.push(now-last);if(intervals.length>1200)intervals.shift();}
      last=now;frames++;draws=renderer.info.render.calls;
@@ -62,9 +64,9 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
    renderer.setPixelRatio(dpr);renderer.setSize(w,h,false);if(particles)particles.uniforms.uDpr.value=dpr;
    camera.aspect=w/h;const half=Math.min(38*Math.PI/360,Math.atan(Math.tan(38*Math.PI/360)*w/h));
    camera.position.set(0,.10,2.25/Math.tan(half));if(particles)particles.uniforms.uCameraDistance.value=camera.position.length();camera.lookAt(0,0,0);camera.updateProjectionMatrix();refresh();}
- function update(s:VisualSnapshot,enabled:boolean,amplitude:number){if(dead)return;
+ function update(s:VisualSnapshot,enabled:boolean,amplitude:number,depthEnabled=forward){if(dead)return;
    if(gate.accept(s)&&s.source==='preview'&&['idle','listening','thinking','speaking'].includes(s.phase)){
-     phase=s.phase as ParticlePhase;gain=Number.isFinite(amplitude)?Math.max(0,Math.min(1,amplitude)):0;motion=enabled;refresh();}}
+     phase=s.phase as ParticlePhase;gain=Number.isFinite(amplitude)?Math.max(0,Math.min(1,amplitude)):0;motion=enabled;forward=depthEnabled;refresh();}}
  const onLost=(e:Event)=>{e.preventDefault();if(dead||health==='unavailable')return;lost=true;stop();health='lost';reason='GPU context loss · DOM fallback';publish(stats());};
  const onRestored=()=>{if(!dead&&lost)restored();};
  canvas.addEventListener('webglcontextlost',onLost);canvas.addEventListener('webglcontextrestored',onRestored);

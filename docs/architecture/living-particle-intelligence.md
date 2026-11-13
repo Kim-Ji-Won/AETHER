@@ -64,3 +64,18 @@ DPR 상한 Balanced 1.25 / High 1.5, 목표 30 / 60fps. 통계는 최근 1,200�
 Motion OFF/reduced-motion은 단발 정적 렌더, 숨김/비활성/최소화는 지속 RAF 정지. 재개 시 누락 시간을 한꺼번에 적용하지 않는다. Context loss는 DOM fallback, restore는 React 재생성 경계에서 한 번 새 Renderer를 만든다. geometry/material/listener/RAF/observer를 cleanup한다. 공유 WebKit 프로세스를 종료하지 않는다.
 
 검증 결과와 한계는 [Visual Lab 검증 기록](../validation/particle-visual-lab.md)을 참조한다. 사용자 시각 승인 전 Main 통합, 실제 오디오 연결, Ready 전환 및 merge는 금지한다.
+
+## Cinematic Depth 후속 승인 — 2026-11-13
+
+사용자는 기존 외형·색·밀도·수축을 유지하면서 관찰자 방향의 실제 입자 변위를 요청했다. 독립 #39 Lab의 제한된 확장이며 Main/SceneHost/Runtime 설계는 변경하지 않는다.
+
+- 고정 PerspectiveCamera는 -Z 방향을 본다. 기존 vertex의 model-view 변환 뒤 **view.z에 양의 변위**를 더하고 projection을 적용한다. 카메라 zoom, object scale 변경은 없다.
+- 합성 raw 강도의 `pow(raw, 1.65)`를 빠른 채널(attack 65ms/release 240ms)과 느린 채널(180/560ms)로 별도 감쇠한다. seeded trait에 따라 두 채널을 혼합한다. 기존 radius의 sqrt(level) 및 침묵 수축과 독립적이다.
+- trait.w≤0.62는 추가 전방 변위 0, 나머지는 연속적인 약/강 응답. 앞쪽·중앙 투영 영역에 가중치를 두고 바깥쪽은 줄인다. 약 62%는 기존 내부·접선·반경 변형만 유지한다. 버퍼/seed/입자 계층/fragment color는 그대로다.
+- 최대 수식 변위는 `2.8 × group × front × interior × response × (1 + 0.12 × speakingWeight)`; 각 계수는 [0,1], speakingWeight도 [0,1]. 이론 상한 3.136 scene units, 실제 샘플은 더 작다. Idle/Thinking은 새 burst target 0이며 이전 음성의 잔여 변위는 부드럽게 감쇠한다.
+- 전방 안전 제한은 camera depth≥1.5와 투영 NDC x±0.86/y±0.82를 사용한다. near=0.1, point size≤5.5×DPR 유지. 이 제한은 추가 전방 변위에만 적용하며 원래 xy를 축소하지 않는다.
+- bounding sphere 5.6은 원래 보수적 경계2.4 + 3.136을 포함한다. Shader 변위를 CPU frustum culling에서 누락하지 않는다. 실제 입자 모양/반경을 5.6으로 확대하는 것이 아니다.
+- Diagnostics의 `전방 이동 · Camera 고정`은 uniform만 전환한다. 같은 시간·seed·Camera에서 ON/OFF 비교하며 Renderer/버퍼 재생성을 하지 않는다.
+- 추가 비용은 vertex당 소수 smoothstep/mix/length/projection guard다. 1 Points / 1 draw call / 기존 attribute bytes 유지. 전경 확대에 따른 fragment overdraw는 발생할 수 있다. 실제 GPU time·VRAM·전력은 아직 측정하지 않았다.
+
+[실제 앱 검증 및 수식 참조값](../validation/particle-depth-motion.md). 수식 모델은 GPU readback이 아니며, 전방으로 다가오는 인상의 충분함은 사용자 Motion 리뷰로만 판단한다.

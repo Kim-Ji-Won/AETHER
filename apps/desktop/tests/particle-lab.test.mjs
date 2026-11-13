@@ -58,3 +58,46 @@ test('spatial radius contracts during long rests, expands with gain and returns 
  assert.equal(env(20.9),0);assert.notEqual(env(1.1,'listening'),env(1.1,'speaking'));
  big.reset();small.reset();assert.deepEqual(big.step(.05,'speaking',1),small.step(.05,'speaking',1));
 });
+
+test('forward channels have separate bounded inertia, amplitude hierarchy and no Idle/Thinking burst',async()=>{
+ const create=await api('motion','createMotion');
+ const run=(phase,gain)=>{const m=create(),samples=[];for(let i=0;i<1920;i++)samples.push(m.step(1/120,phase,gain));return samples;};
+ for(const phase of ['idle','thinking'])assert.ok(run(phase,1).every(s=>s.forwardFast===0&&s.forwardSlow===0));
+ const big=run('listening',1),small=run('listening',.35),speak=run('speaking',1);
+ const peak=a=>Math.max(...a.map(s=>s.forwardFast));assert.ok(peak(big)>peak(small)*5);assert.ok(peak(speak)>.7);
+ assert.ok(big.every(s=>s.forwardFast>=0&&s.forwardFast<=1&&s.forwardSlow>=0&&s.forwardSlow<=1));
+ assert.ok(big.some(s=>s.raw===0&&s.forwardSlow>s.forwardFast+.1)); // independent slow return
+ assert.ok(big.every((s,i)=>!i||Math.abs(s.forwardFast-big[i-1].forwardFast)<.08));
+ assert.ok(big.at(-1).forwardSlow<.001);
+ const transition=create();for(let i=0;i<600;i++)transition.step(1/120,'listening',1);
+ for(let i=0;i<600;i++)transition.step(1/120,'thinking',1);
+ assert.ok(transition.step(0,'thinking',1).forwardSlow<.001);
+});
+test('forward model preserves most of the volume, bounds displacement and guards fixed-camera projection',async()=>{
+ const data=await api('particles','particleData'),distance=await api('depth','forwardDistance'),safe=await api('depth','safeForward'),bound=await api('depth','particleBound');
+ const {positions,traits}=data(20000);let still=0,max=0;
+ for(let i=0;i<20000;i++){
+   const t=[...traits.slice(i*4,i*4+4)],p=[...positions.slice(i*3,i*3+3)];
+   const d=distance(t,p,1,1,1);if(d===0)still++;max=Math.max(max,d);
+   assert.ok(d>=0&&d<=2.8*1.12);assert.ok(2.4+d<bound);
+   const view=[p[0]*1.3,p[1]*1.3,-6.53+p[2]*1.3],z=view[2]+safe(d,view,2.9,2.9);
+   assert.ok(z<=-1.5);assert.ok(Math.abs(view[0]*2.9/z)<=.86);assert.ok(Math.abs(view[1]*2.9/z)<=.82);
+ }
+ assert.ok(still/20000>.60&&still/20000<.64);assert.ok(max>2);
+ assert.ok(Math.abs(safe(3,[0,0,-1.6],2.9,2.9)-.1)<1e-12);
+});
+test('forward ON/OFF keeps one renderer and immutable geometry, and does not reset the preview',async()=>{
+ const h=await lab();button(h,'Renderer Diagnostics');h.tick(100);h.tick(200);h.tick(400);h.flush();
+ const report=()=>JSON.parse(nodes(h.tree,n=>n.type==='pre')[0].props.children);
+ const initial=report();assert.ok(initial.time>0);
+ const toggle=nodes(h.tree,n=>n.type==='input'&&n.props?.type==='checkbox').at(-1);
+ const before=h.metrics();toggle.props.onChange({target:{checked:false}});h.flush();
+ const after=h.metrics(),updated=report();assert.equal(updated.created,initial.created);assert.equal(updated.generation,initial.generation);
+ assert.equal(updated.time,initial.time);assert.equal(updated.forwardEnabled,false);assert.equal(after.resources,before.resources);
+ assert.ok(after.maxLive<=1&&after.maxRAF<=1);assert.equal(h.requests.length,0);h.unmount();clean(h);
+ const create=await api('particles','createParticles'),p=create('high');
+ const position=p.points.geometry.attributes.position.array,copy=position.slice();
+ p.uniforms.uForwardFast.value=1;p.uniforms.uForwardSlow.value=.8;p.uniforms.uForwardEnabled.value=0;
+ assert.deepEqual(position,copy);assert.match(p.points.material.vertexShader,/view.z\+=uForwardEnabled/);
+ assert.match(p.points.material.vertexShader,/5.5\*uDpr/);p.dispose();
+});

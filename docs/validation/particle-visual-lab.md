@@ -1,9 +1,11 @@
-# Particle Visual Lab — 실제 앱 검증 기록
+# Particle Visual Lab — 수축·확산 기준선 검증 기록
 
 Issue #39 · 2026-11-13 · branch `feat/39-particle-visual-lab`.
 기준 main `1dc502e6380918b5e7d2b15863d807e1849365e0`.
 
 사용자는 기본 파란 입자 방향을 수용했으나 개선 Motion의 시각 승인은 아직 하지 않았다. 아래 PASS는 명시한 기능 검증에만 해당한다.
+
+이 문서는 `455315da72c81c05ff322939369c0c5ec962364b` 기준선의 이력이다. 해당 앱은 `target/particle-lab-39/before-forward/AETHER.app`에도 같은 hash로 보존했다. 최신 전방 이동 앱의 hash·검증 범위는 [Cinematic Depth 검증](particle-depth-motion.md)을 따른다. 아래 PASS를 새 앱으로 자동 이월하지 않는다.
 
 ## 앱 식별과 재현
 

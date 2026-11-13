@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {forwardGLSL,particleBound} from './depth';
 export const particleCounts={balanced:12000,high:20000} as const;
 // Stable prefix across quality levels. Static volume buffers, no per-frame CPU geometry updates.
 export function particleData(count:number) {
@@ -16,6 +17,7 @@ const vertex=/* glsl */`
 attribute vec4 traits;
 uniform float uTime; uniform float uLevel; uniform float uThinking; uniform float uDpr; uniform float uDensity;
 uniform float uRadius; uniform float uSpeaking; uniform float uCameraDistance;
+${forwardGLSL}
 varying float vAlpha; varying float vTint; varying float vDepth; varying float vAccent; varying float vRadial;
 void main(){
   vec3 n=normalize(position+vec3(.0001));
@@ -32,6 +34,9 @@ void main(){
   vec3 focus=vec3(sin(t*.27)*.28,cos(t*.33)*.18,sin(t*.21)*.24);
   p+=uThinking*(focus-position)*(.08+.12*traits.w)*(.5+.5*sin(t*.64+phase));
   vec4 view=modelViewMatrix*vec4(p,1.0);
+  // In view space the camera looks down -Z: +Z moves actual vertices toward it.
+  // Camera, object scale, base buffers and radial contraction remain unchanged.
+  view.z+=uForwardEnabled*safeForward(forwardDistance(traits,position),view);
   gl_Position=projectionMatrix*view;
   float front=clamp(.5+(view.z+uCameraDistance)/2.6,0.0,1.0);
   float medium=step(.72,traits.z),accent=step(.98,traits.z);
@@ -59,8 +64,8 @@ export function createParticles(quality:'balanced'|'high') {
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.BufferAttribute(data.positions,3));
   geometry.setAttribute('traits',new THREE.BufferAttribute(data.traits,4));
-  geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(),2.4);
-  const uniforms={uTime:{value:0},uLevel:{value:0},uThinking:{value:0},uRadius:{value:1},uSpeaking:{value:0},uCameraDistance:{value:6.5},uDpr:{value:1},uDensity:{value:12000/count}};
+  geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(),particleBound);
+  const uniforms={uForwardFast:{value:0},uForwardSlow:{value:0},uForwardEnabled:{value:1},uTime:{value:0},uLevel:{value:0},uThinking:{value:0},uRadius:{value:1},uSpeaking:{value:0},uCameraDistance:{value:6.5},uDpr:{value:1},uDensity:{value:12000/count}};
   const material=new THREE.ShaderMaterial({uniforms,vertexShader:vertex,fragmentShader:fragment,
     transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending});
   const points=new THREE.Points(geometry,material);

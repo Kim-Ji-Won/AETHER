@@ -22,7 +22,7 @@ export function damp(current:number,target:number,dt:number,attack=.055,release=
 }
 const smooth=(a:number,b:number,x:number)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
 export function createMotion() {
-  let time=0,level=0,thinking=0,radius=1,voice=0,speakingWeight=0,silence=0;
+  let time=0,level=0,thinking=0,radius=1,voice=0,speakingWeight=0,silence=0,forwardFast=0,forwardSlow=0;
   return {
     step(dt:number,phase:ParticlePhase,gain:number) {
       const delta=Math.min(.1,Math.max(0,Number.isFinite(dt)?dt:0)); time+=delta;
@@ -30,6 +30,10 @@ export function createMotion() {
       const normalizedGain=Number.isFinite(gain)?Math.min(1,Math.max(0,gain)):0;
       const raw=voiced?syntheticEnvelope(time,phase)*normalizedGain:0;
       level=damp(level,raw,delta);
+      // Nonlinear voice depth has its own inertia, independent of the sqrt(level) spatial radius.
+      const depthTarget=voiced?Math.pow(raw,1.65):0;
+      forwardFast=damp(forwardFast,depthTarget,delta,.065,.24);
+      forwardSlow=damp(forwardSlow,depthTarget,delta,.18,.56);
       silence=raw<.025?silence+delta:0;
       const ending=1-smooth(14.2,15.8,time);
       voice=damp(voice,voiced?ending:0,delta,.25,.55);
@@ -39,9 +43,9 @@ export function createMotion() {
       const compact=smooth(.4,1.5,silence);
       const target=1+voice*(-.06+.25*Math.sqrt(level)-.10*compact);
       radius=damp(radius,target,delta,.16,.36);
-      return {time,level,raw,thinking,radius,voice,speakingWeight,silence,
+      return {time,level,raw,thinking,radius,voice,speakingWeight,silence,forwardFast,forwardSlow,
         inputLevel:phase==='listening'?level:0,outputLevel:phase==='speaking'?level:0};
     },
-    reset(){time=0;level=0;thinking=0;radius=1;voice=0;speakingWeight=0;silence=0;},
+    reset(){time=0;level=0;thinking=0;radius=1;voice=0;speakingWeight=0;silence=0;forwardFast=0;forwardSlow=0;},
   };
 }

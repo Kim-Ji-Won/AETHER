@@ -6,21 +6,21 @@ import './particle-lab.css';
 export function ParticleLab({exit}:{exit:()=>void}) {
  const surface=useRef<HTMLDivElement>(null),engine=useRef<ParticleRenderer|null>(null),diagnosticTrigger=useRef<HTMLButtonElement>(null);
  const identity=useRef(`particle-preview-${crypto.randomUUID()}`),sequence=useRef(0);
- const [phase,setPhase]=useState<ParticlePhase>('idle'),[motion,setMotion]=useState(true),[gain,setGain]=useState(1);
+ const [phase,setPhase]=useState<ParticlePhase>('idle'),[motion,setMotion]=useState(true),[gain,setGain]=useState(1),[forward,setForward]=useState(true);
  const [quality,setQuality]=useState<LabOptions['quality']>('balanced'),[fault,setFault]=useState<LabOptions['fault']>('none');
  const [revision,setRevision]=useState(0),[report,setReport]=useState<LabReport|null>(null),[diagnostics,setDiagnostics]=useState(false);
- const latest=useRef({phase,motion,gain});latest.current={phase,motion,gain};
+ const latest=useRef({phase,motion,gain,forward});latest.current={phase,motion,gain,forward};
  const snapshot=():VisualSnapshot=>({instance:identity.current,contextEpoch:1,visualSequence:++sequence.current,source:'preview',phase:latest.current.phase,
    connection:'disconnected',illuminationEnabled:false,inputLevel:null,outputLevel:null});
  useEffect(()=>{
    const node=surface.current;if(!node)return;let mounted=true;
    const canvas=document.createElement('canvas');canvas.setAttribute('aria-hidden','true');node.append(canvas);
-   const instance=createParticleRenderer(canvas,snapshot(),{quality,fault,motion:latest.current.motion,gain:latest.current.gain},r=>{if(mounted)setReport(r);},()=>{if(mounted)setRevision(r=>r+1);});
+   const instance=createParticleRenderer(canvas,snapshot(),{quality,fault,motion:latest.current.motion,gain:latest.current.gain,forward:latest.current.forward},r=>{if(mounted)setReport(r);},()=>{if(mounted)setRevision(r=>r+1);});
    engine.current=instance;
    const observer=new ResizeObserver(()=>{if(mounted){const r=node.getBoundingClientRect();instance.resize(r.width,r.height);}});observer.observe(node);
    return()=>{mounted=false;observer.disconnect();instance.dispose();canvas.remove();if(engine.current===instance)engine.current=null;};
  },[quality,fault,revision]);
- useEffect(()=>{engine.current?.update(snapshot(),motion,gain);},[phase,motion,gain]);
+ useEffect(()=>{engine.current?.update(snapshot(),motion,gain,forward);},[phase,motion,gain,forward]);
  const closeDiagnostics=()=>{setDiagnostics(false);diagnosticTrigger.current?.focus();};
  const ready=report?.health==='ready';
  return <main className="particle-lab">
@@ -43,6 +43,7 @@ export function ParticleLab({exit}:{exit:()=>void}) {
    <footer>Local Visual Preview · 16초 단회 합성 패턴 · 마이크 접근 / 녹음 / 음성 합성 없음</footer>
    {diagnostics&&<aside className="lab-diagnostics" aria-label="Renderer Diagnostics" onKeyDown={e=>{if(e.key==='Escape')closeDiagnostics();}}>
      <button onClick={closeDiagnostics}>진단 닫기</button><p>{report?.reason}</p>
+     <label><input type="checkbox" checked={forward} onChange={e=>setForward(e.target.checked)}/>전방 이동 · Camera 고정</label>
      <pre>{JSON.stringify(report,null,2)}</pre>
      <label>GPU 오류 검사<select value={fault} onChange={e=>setFault(e.target.value as LabOptions['fault'])}><option value="none">정상</option><option value="shader">Shader 실패</option><option value="fallback">DOM fallback</option></select></label>
      <div><button disabled={!report?.lossSupported||!ready} onClick={()=>engine.current?.lose()}>Context loss</button><button disabled={report?.health!=='lost'} onClick={()=>engine.current?.restore()}>Context restore</button><button onClick={()=>setRevision(v=>v+1)}>Renderer 재생성</button><button onClick={()=>{const r=engine.current?.stats();if(r)setReport(r);}}>진단 갱신</button></div>
