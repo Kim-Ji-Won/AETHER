@@ -2,18 +2,20 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Core, coreStates, type CoreState } from './Core';
 import { FakeRun } from './FakeRun';
 import { CommandDock, ContextPanel, Icon, Navigation, pages, StatusArea, type Page } from './ShellParts';
-import { SceneHost } from './scene/SceneHost';
+import { MainParticleHost } from './particle-lab/MainParticleHost';
+import type { LabOptions, LabReport } from './particle-lab/renderer';
+import type { ParticlePhase } from './particle-lab/motion';
+import './spatial-presence.css';
 import { useVisualState } from './scene/useVisualState';
-import type { Fault, SceneReport } from './scene/renderer';
 import type { Quality } from './scene/framing';
 import { useMotion } from './useMotion';
 
 export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: () => void; nativeChecks: ReactNode }) {
   const [quality, setQuality] = useState<Quality>('balanced');
-  const [angle, setAngle] = useState(0);
-  const [fault, setFault] = useState<Fault>('none');
-  const [sceneReport, setSceneReport] = useState<SceneReport | null>(null);
-  const [referenceFraming, setReferenceFraming] = useState(false);
+  const [fault, setFault] = useState<LabOptions['fault']>('none');
+  const sceneReport = useRef<LabReport | null>(null);
+  const [particlePreview, setParticlePreview] = useState<ParticlePhase | ''>('');
+  const [diagnostics, setDiagnostics] = useState(false);
   const [page, setPage] = useState<Page>('main');
   const [preview, setPreview] = useState<CoreState | ''>('');
   const [motion, setMotion] = useState(true);
@@ -24,16 +26,16 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
   const heading = useRef<HTMLHeadingElement>(null);
   const firstRender = useRef(true);
   const policy = useMotion(motion, page === 'main' || (page === 'command' && legacyPreview));
-  const visualSnapshot = useVisualState(preview, lit);
+  const visualSnapshot = useVisualState(particlePreview, lit);
   useLayoutEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     heading.current?.focus();
   }, [page]);
-  function navigate(next: Page) { setPage(next); setContext(false); setStatus(false); }
+  function navigate(next: Page) { if (next !== 'main') setParticlePreview(''); setPage(next); setContext(false); setStatus(false); }
   function closeContext() { setContext(false); document.querySelector<HTMLButtonElement>('.context-toggle')?.focus(); }
   function closeStatus() { setStatus(false); document.querySelector<HTMLButtonElement>('.status-toggle')?.focus(); }
   const current = pages.find(item => item[0] === page)!;
-  return <div className={`shell ${policy.active ? 'motion-on' : 'motion-off'}`}>
+  return <div className={`shell spatial-shell ${policy.active ? 'motion-on' : 'motion-off'}`} data-visual-phase={particlePreview || 'idle'}>
     <a className="skip-link" href="#workspace">본문으로 건너뛰기</a>
     <Navigation page={page} navigate={navigate} />
     <main id="workspace" className={`workspace ${page === 'main' ? 'presence-workspace' : ''}`} tabIndex={-1} onKeyDown={e => { if (e.key === 'Escape') { if (context) closeContext(); if (status) closeStatus(); } }}>
@@ -50,12 +52,14 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
       {page === 'main' && <section className="main-page" aria-label="Main">
         <div className="main-stage">
           <section className="scene-viewport" aria-label="3D Scene 배치 영역">
-            <SceneHost snapshot={visualSnapshot} motion={motion} panelOpen={status || context}
-              options={{quality, angle, fault, referenceFraming}} onReport={setSceneReport} />
+            <MainParticleHost snapshot={visualSnapshot} motion={motion} panelOpen={status || context} quality={quality} fault={fault}
+              diagnostics={diagnostics} onCloseDiagnostics={() => setDiagnostics(false)}
+              onReport={value => { sceneReport.current=value; }} onFinished={() => setParticlePreview('')} />
           </section>
           {status && <StatusArea close={closeStatus} />}
           <ContextPanel open={context} close={closeContext} navigate={navigate} />
         </div>
+        {particlePreview && <button className="preview-stop" onClick={() => setParticlePreview('')}>Preview 종료</button>}
         <CommandDock draft={draft} setDraft={setDraft} />
       </section>}
       {page === 'memory' && <section className="page-scroll" aria-label="Memory Center">
@@ -71,23 +75,26 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
       <section className="page-scroll" hidden={page !== 'command'} aria-label="Command Center">
         <div className="section-intro"><span className="badge">DEVELOPER DIAGNOSTICS</span><p>E4 Fake Runtime의 합성 진단입니다. 실제 AI나 컴퓨터 제어를 수행하지 않습니다.</p></div>
         <div className="panel"><div className="panel-heading"><h2>Runtime Console</h2><span className="badge">FAKE PROVIDER</span></div><FakeRun /></div>
-        <div className="panel"><div className="panel-heading"><h2>Neural Scene</h2><span className="badge">P1.2b · PREVIEW</span></div>
-          <p>유기적 신경망 구조의 로컬 시각 실험입니다. 실제 AI 처리·최종 Plasma·Bloom은 포함하지 않습니다. 아래 설정은 Main 진입 시 적용됩니다.</p>
+        <div className="panel"><div className="panel-heading"><h2>Particle Diagnostics</h2><span className="badge">LOCAL VISUAL PREVIEW</span></div>
+          <p>Main은 실제 AI 미연결 상태의 로컬 시각 효과입니다. 아래 Preview는 마이크·음성 합성 없이 16초 합성 패턴을 재생합니다.</p>
           <div className="scene-settings">
-            <label>Scene 품질<select value={quality} onChange={e => setQuality(e.target.value as Quality)}><option value="balanced">Balanced · 30fps 목표</option><option value="high">High · 60fps 목표</option></select></label>
-            <label>Camera 시점<select value={angle} onChange={e => setAngle(Number(e.target.value))}><option value={-15}>−15°</option><option value={0}>정면</option><option value={15}>+15°</option></select></label>
-            <label>Camera 거리<select value={referenceFraming ? 'reference' : 'refined'} onChange={e => setReferenceFraming(e.target.value === 'reference')}><option value="refined">개선 Framing</option><option value="reference">이전 거리 · 비교용</option></select></label>
-            <label>GPU 실패 진단<select value={fault} onChange={e => setFault(e.target.value as Fault)}><option value="none">정상 경로</option><option value="shader">Shader compile 실패 주입</option><option value="fallback">DOM fallback 주입</option></select></label>
+            <label>Particle 품질<select value={quality} onChange={e => setQuality(e.target.value as Quality)}><option value="balanced">Balanced · 12,000 / 30fps 목표</option><option value="high">High · 20,000 / 60fps 목표</option></select></label>
+            <label>GPU 실패 진단<select value={fault} onChange={e => setFault(e.target.value as LabOptions['fault'])}><option value="none">정상 경로</option><option value="shader">Shader compile 실패 주입</option><option value="fallback">DOM fallback 주입</option></select></label>
           </div>
-          <pre className="scene-report" aria-label="Scene 최근 진단">{sceneReport ? JSON.stringify(sceneReport, null, 2) : 'Main Scene 실행 전'}</pre>
-          <p>마지막 이벤트/수동 조회 값 · CPU submit과 frame interval은 GPU time이 아닙니다. GPU time / 귀속 RSS: UNAVAILABLE. 에너지: NOT_RUN.</p>
+          <div className="fake-actions">{(['idle','listening','thinking','speaking'] as const).map(phase => <button key={phase} onClick={() => {setParticlePreview(phase);navigate('main');}}>{phase} Preview 시작</button>)}
+            <button onClick={() => {setParticlePreview('');navigate('main');}}>Preview 해제 · Main</button>
+            <button onClick={() => {setDiagnostics(true);navigate('main');}}>Main GPU 진단 열기</button>
+          </div>
+          <label className="motion-toggle"><input type="checkbox" checked={motion} onChange={e=>setMotion(e.target.checked)}/>Particle Motion {motion?'ON':'OFF'}</label>
+          <pre className="scene-report" aria-label="Particle 최근 진단">{sceneReport.current ? JSON.stringify(sceneReport.current,null,2) : 'Main 실행 전'}</pre>
+          <p>Main 이탈 시 자원 해제. 위 값은 마지막 보고이며 GPU time / VRAM / 귀속 RSS: UNAVAILABLE. 장시간 에너지: NOT_RUN.</p>
           <a href="/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noreferrer">Three.js 라이선스 고지</a>
         </div>
         <div className="panel"><div className="panel-heading"><h2>Core Diagnostics</h2><span className="badge">LOCAL VISUAL</span></div><p>점등과 상태 선택은 로컬 시각 실험입니다. 실제 AI 상태를 변경하지 않습니다.</p>
           <div className="core-controls"><button className="primary" onClick={onLight} disabled={lit}>{lit ? '✓ 코어 점등됨' : '◈ 코어 점등'}</button><label>상태 미리보기<select value={preview} onChange={e => setPreview(e.target.value as CoreState | '')}><option value="">실제 연결 상태</option>{Object.entries(coreStates).map(([key, [label]]) => <option key={key} value={key}>Preview · {key} / {label}</option>)}</select></label></div>
           <button className="text-button" aria-expanded={legacyPreview} onClick={() => setLegacyPreview(!legacyPreview)}>{legacyPreview ? '기존 2D Core 닫기' : '기존 2D Core 미리보기'}</button>
           {legacyPreview && <div className="legacy-preview"><Core state={preview || 'offline'} lit={lit} preview={preview !== ''} /></div>}
-          <p>Motion 정책: {policy.reason} · 마지막 자동 정지: {policy.lastPause}</p><p className="muted">현재 Core는 승인되지 않은 2D placeholder입니다. Main은 실제 3D Neural Structure Preview이며 최종 Plasma는 후속 단계입니다.</p>
+          <p>Motion 정책: {policy.reason} · 마지막 자동 정지: {policy.lastPause}</p><p className="muted">기존 2D 점등 진단을 보존합니다. Main의 Particle와 별도이며 실제 AI 상태가 아닙니다.</p>
         </div>
         <div className="panel"><div className="panel-heading"><h2>Native Diagnostics</h2><span className="badge">E3b · READ / APPROVE</span></div>{nativeChecks}</div>
       </section>

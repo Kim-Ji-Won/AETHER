@@ -1,24 +1,25 @@
 import * as THREE from 'three';
 import {probeShaders} from '../scene/capabilities';
 import {renderPolicy} from '../scene/framing';
-import {VisualGate,type VisualSnapshot} from '../scene/visual-state';
+import type {VisualSnapshot} from '../scene/visual-state';
+import {ParticleVisualAdapter} from './visual-adapter';
 import {createMotion,type ParticlePhase} from './motion';
 import {createParticles} from './particles';
-export interface LabOptions {quality:'balanced'|'high';fault:'none'|'shader'|'fallback';motion:boolean;gain:number;forward?:boolean}
+export interface LabOptions {quality:'balanced'|'high';fault:'none'|'shader'|'fallback';motion:boolean;gain:number;forward?:boolean;main?:boolean}
 export interface LabReport {
  health:'ready'|'lost'|'unavailable'|'disposed'; reason:string; generation:number;
  frames:number; raf:number; live:number; created:number; disposed:number;
  particles:number; draws:number; bytes:number; dpr:number; width:number; height:number;
- forwardEnabled:boolean; time:number; level:number; raw:number; inputLevel:number; outputLevel:number;
+ forwardEnabled:boolean; time:number; level:number; raw:number; inputLevel:number|null; outputLevel:number|null; syntheticInputLevel:number;syntheticOutputLevel:number;
  frameP50:number|null;frameP95:number|null;cpuP50:number|null;cpuP95:number|null;samples:number;lossSupported:boolean;
  gpuTime:'UNAVAILABLE';vram:'UNAVAILABLE';rss:'UNAVAILABLE';
 }
 const audit={generation:0,live:0,created:0,disposed:0};
 const percentile=(a:number[],q:number)=>a.length?[...a].sort((x,y)=>x-y)[Math.ceil(a.length*q)-1]:null;
-// Separate opt-in lab: reads only local preview snapshots; no IPC, audio, Runtime or permissions.
+// Shared visual engine: Lab uses synthetic Preview; Main also accepts actual offline. No IPC/audio/Runtime ownership.
 export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSnapshot,options:LabOptions,
- publish:(r:LabReport)=>void,restored:()=>void) {
- const generation=++audit.generation,gate=new VisualGate([initial.instance,initial.contextEpoch,true]);
+ publish:(r:LabReport)=>void,restored:()=>void,previewFinished:()=>void=()=>{}) {
+ const generation=++audit.generation,gate=new ParticleVisualAdapter(initial,!!options.main);
  const media=matchMedia('(prefers-reduced-motion: reduce)'),clock=createMotion();
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,.1,40);
  let renderer:THREE.WebGLRenderer|null=null,particles:ReturnType<typeof createParticles>|null=null;
@@ -26,9 +27,11 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
  let dead=false,lost=false,counted=false,available=false,raf=0,frames=0,draws=0,last=0,next=0,lastPublish=0;
  let width=1,height=1,dpr=1,motion=options.motion,gain=options.gain,phase:ParticlePhase='idle',forward=options.forward??true;
  let health:LabReport['health']='unavailable',reason='초기화 중',sample=clock.step(0,phase,gain);
+ let preview=false,finished=false;
  const intervals:number[]=[],cpu:number[]=[];
  const stats=():LabReport=>({health,reason,generation,frames,raf:raf?1:0,live:audit.live,created:audit.created,disposed:audit.disposed,
    particles:particles?.count??0,draws,bytes:particles?.bytes??0,dpr,width,height,forwardEnabled:forward,...sample,
+   inputLevel:options.main?null:sample.inputLevel,outputLevel:options.main?null:sample.outputLevel,syntheticInputLevel:sample.inputLevel,syntheticOutputLevel:sample.outputLevel,
    frameP50:percentile(intervals,.5),frameP95:percentile(intervals,.95),cpuP50:percentile(cpu,.5),cpuP95:percentile(cpu,.95),samples:intervals.length,lossSupported:!!loss,gpuTime:'UNAVAILABLE',vram:'UNAVAILABLE',rss:'UNAVAILABLE'});
  function stop(){if(raf)cancelAnimationFrame(raf);raf=0;last=0;next=0;}
  function release(){stop();particles?.dispose();particles=null;scene.clear();renderer?.dispose();renderer=null;
@@ -48,6 +51,7 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
      renderer.render(scene,camera);cpu.push(performance.now()-start);if(cpu.length>1200)cpu.shift();
      if(advance&&last){intervals.push(now-last);if(intervals.length>1200)intervals.shift();}
      last=now;frames++;draws=renderer.info.render.calls;
+     if(options.main&&preview&&!finished&&sample.time>=16){finished=true;previewFinished();}
    }catch{fail('Particle draw 실패 · DOM controls 유지');}
  }
  function tick(now:number){raf=0;if(dead||lost||health!=='ready'||!policy().animate){last=0;return;}
@@ -65,23 +69,24 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
    camera.aspect=w/h;const half=Math.min(38*Math.PI/360,Math.atan(Math.tan(38*Math.PI/360)*w/h));
    camera.position.set(0,.10,2.25/Math.tan(half));if(particles)particles.uniforms.uCameraDistance.value=camera.position.length();camera.lookAt(0,0,0);camera.updateProjectionMatrix();refresh();}
  function update(s:VisualSnapshot,enabled:boolean,amplitude:number,depthEnabled=forward){if(dead)return;
-   if(gate.accept(s)&&s.source==='preview'&&['idle','listening','thinking','speaking'].includes(s.phase)){
-     phase=s.phase as ParticlePhase;gain=Number.isFinite(amplitude)?Math.max(0,Math.min(1,amplitude)):0;motion=enabled;forward=depthEnabled;refresh();}}
+   const accepted=gate.accept(s);if(accepted){
+     if(options.main&&accepted.preview&&(!preview||phase!==accepted.phase)){clock.reset();sample=clock.step(0,accepted.phase,amplitude);finished=false;}
+     phase=accepted.phase;preview=accepted.preview;gain=Number.isFinite(amplitude)?Math.max(0,Math.min(1,amplitude)):0;motion=enabled;forward=depthEnabled;refresh();}}
  const onLost=(e:Event)=>{e.preventDefault();if(dead||health==='unavailable')return;lost=true;stop();health='lost';reason='GPU context loss · DOM fallback';publish(stats());};
  const onRestored=()=>{if(!dead&&lost)restored();};
  canvas.addEventListener('webglcontextlost',onLost);canvas.addEventListener('webglcontextrestored',onRestored);
  document.addEventListener('visibilitychange',refresh);window.addEventListener('focus',refresh);window.addEventListener('blur',refresh);media.addEventListener('change',refresh);
  try{
    if(options.fault==='fallback')throw Error('진단용 DOM fallback');
-   gl=canvas.getContext('webgl2',{alpha:false,antialias:false,powerPreference:'low-power'});if(!gl)throw Error('WebGL2 사용 불가');
+   gl=canvas.getContext('webgl2',{alpha:!!options.main,premultipliedAlpha:true,antialias:false,powerPreference:'low-power'});if(!gl)throw Error('WebGL2 사용 불가');
    loss=gl.getExtension('WEBGL_lose_context');probeShaders(gl,options.fault==='shader');
-   renderer=new THREE.WebGLRenderer({canvas,context:gl,alpha:false,antialias:false});counted=true;audit.live++;audit.created++;
-   renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.setClearColor(0x02050a,1);
+   renderer=new THREE.WebGLRenderer({canvas,context:gl,alpha:!!options.main,premultipliedAlpha:true,antialias:false});counted=true;audit.live++;audit.created++;
+   renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.setClearColor(options.main?0x000000:0x02050a,options.main?0:1);
    renderer.debug.onShaderError=()=>{throw Error('Particle shader compile/link 실패');};
-   particles=createParticles(options.quality);scene.add(particles.points);renderer.compile(scene,camera);
+   particles=createParticles(options.quality,!!options.main);scene.add(particles.points);renderer.compile(scene,camera);
    health='ready';update(initial,motion,gain);
  }catch(e){fail(e instanceof Error?e.message:'초기화 실패');}
- return {stats,resize,update,replay(){if(dead)return;clock.reset();sample=clock.step(0,phase,gain);refresh();},
+ return {stats,resize,update,setMotion(enabled:boolean){if(dead)return;motion=enabled;refresh();},replay(){if(dead)return;finished=false;clock.reset();sample=clock.step(0,phase,gain);refresh();},
    seek(seconds:number){if(dead||!Number.isFinite(seconds))return;clock.reset();sample=clock.step(0,phase,gain);
      const steps=Math.round(Math.min(16,Math.max(0,seconds))*120);for(let i=0;i<steps;i++)sample=clock.step(1/120,phase,gain);motion=false;refresh();},
    lose(){if(!dead&&health==='ready')loss?.loseContext();},restore(){if(!dead&&lost)loss?.restoreContext();},

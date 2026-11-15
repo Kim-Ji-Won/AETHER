@@ -100,7 +100,7 @@ export async function harness(output) {
     },
   };
   function jsx(type, props) {
-    if (props?.ref && ['foundation-surface','lab-canvas'].includes(props.className)) props.ref.current = surface;
+    if (props?.ref && ['foundation-surface','lab-canvas','particle-main-surface'].includes(props.className)) props.ref.current = surface;
     return { type, props };
   }
   const context = vm.createContext({ document, window, ResizeObserver: Observer, matchMedia: () => media,
