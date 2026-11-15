@@ -29,7 +29,7 @@ class IndependentTests(unittest.TestCase):
             folder=Path(t);plan=dict(run_id='a'*32,source_sha='b'*40,artifact_hash='c'*64)
             resource=dict(plan,preflight_run=plan['run_id'])
             evidence=folder/'result.json';evidence.write_text('{}')
-            h.write_new(folder/'summary.json',dict(status='PASS',completed=6,evidence={'result.json':h.base.sha(evidence)}))
+            h.write_new(folder/'summary.json',dict(status='PASS',functional_status='PASS',completed=6,evidence={'result.json':h.base.sha(evidence)}))
             with patch.object(h,'load',return_value=(folder,plan)),patch.object(h,'verify'):
                 h.preflight_gate(resource)
                 with self.assertRaisesRegex(ValueError,'PREFLIGHT_PROVENANCE'):h.preflight_gate(dict(resource,source_sha='d'*40))

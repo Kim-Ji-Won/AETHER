@@ -17,8 +17,10 @@ import time
 import uuid
 import recovery_latency as recovery
 from recovery_latency import base, process, environment
+import recovery_preflight_policy as functional
 
-ROOT=recovery.ROOT/'target/preflight-e5c-44'
+ROOT=recovery.ROOT/'target/gate-split-44'
+PRIOR=recovery.ROOT/'target/preflight-e5c-44'
 CASES=[('webview-a','normal','ordinary'),('webview-a','pause25','ordinary'),
        ('node-b','normal','ordinary'),('node-b','pause25','ordinary'),
        ('node-b','pause25','deferred_registration'),('node-b','pause25','exit_boundary')]
@@ -50,7 +52,10 @@ def preserved():
     original=recovery.original_evidence()
     old=recovery.OUT;manifest=json.loads((old/'evidence-manifest.json').read_text())
     if any(base.sha(old/k)!=v for k,v in manifest.items()):raise ValueError('RECOVERY_EVIDENCE_CHANGED')
-    return dict(original_digest=recovery.digest(original),recovery_manifest_sha256=base.sha(old/'evidence-manifest.json'))
+    previous=json.loads((PRIOR/'evidence-manifest.json').read_text())
+    if any(base.sha(PRIOR/k)!=v for k,v in previous.items()):raise ValueError('PRIOR_PREFLIGHT_EVIDENCE_CHANGED')
+    return dict(original_digest=recovery.digest(original),recovery_manifest_sha256=base.sha(old/'evidence-manifest.json'),
+                prior_preflight_manifest_sha256=base.sha(PRIOR/'evidence-manifest.json'))
 
 
 def verify(plan):
@@ -66,14 +71,17 @@ def prepare():
     art=base.artifacts()
     if art['artifact_hash']!=recovery.EXPECTED_BUNDLE:raise ValueError('WRONG_ARTIFACT')
     provenance=dict(source_sha=recovery.harness_git('rev-parse','HEAD'),artifact_hash=art['artifact_hash'],
-                    app_source_sha=recovery.EXPECTED_BUILD,preserved=preserved(),environment_policy=environment.POLICY)
+                    app_source_sha=recovery.EXPECTED_BUILD,preserved=preserved(),environment_policy=environment.POLICY,
+                    protocol='GATE_SPLIT_V2',screen_condition='USER_FIXED_CHATGPT_AND_CODEX_WINDOWS_RETAINED')
     ids={k:uuid.uuid4().hex for k in ('preflight','resource')}
     pre=dict(provenance,classification='HARNESS_PREFLIGHT',run_id=ids['preflight'],
+             drift_blocks_execution=False,idle_services_allowed=True,
              cases=[dict(index=i,variant=v,fixture=f,mode=m,trial_id=uuid.uuid4().hex) for i,(v,f,m) in enumerate(CASES)],
              timeout_seconds=180,replacements=False)
     conditions=json.loads((recovery.ROOT/'scripts/recovery-resource-plan.json').read_text())
     conditions['gate']='Same-source sealed HARNESS_PREFLIGHT PASS, clean owned processes, own baseline and latch'
     res=dict(provenance,classification='INDEPENDENT_E5C_MINIMUM_SCOPE',run_id=ids['resource'],
+             drift_blocks_execution=True,idle_services_allowed=False,
              preflight_run=ids['preflight'],conditions=conditions,
              cases=[dict(index=n*2+j,variant=v,fixture='resource',mode='resource',trial_id=uuid.uuid4().hex)
                     for n,pair in enumerate(conditions['order']) for j,v in enumerate(pair)],timeout_seconds=400,replacements=False)
@@ -90,7 +98,7 @@ def preflight_gate(resource_plan):
     if plan['run_id']!=resource_plan['preflight_run'] or any(plan[k]!=resource_plan[k] for k in ('source_sha','artifact_hash')):
         raise ValueError('PREFLIGHT_PROVENANCE_MISMATCH')
     summary=json.loads((folder/'summary.json').read_text())
-    if (folder/'stop.json').exists() or summary['status']!='PASS' or summary['completed']!=6:
+    if (folder/'stop.json').exists() or summary.get('functional_status')!='PASS' or summary['completed']!=6:
         raise ValueError('PREFLIGHT_NOT_PASS')
     for name,sha in summary['evidence'].items():
         if base.sha(folder/name)!=sha:raise ValueError('PREFLIGHT_EVIDENCE_CHANGED')
@@ -100,7 +108,9 @@ def gate(folder,plan):
     verify(plan)
     if (folder/'stop.json').exists():raise ValueError('STOP_LATCH_SET')
     if plan['classification'].startswith('INDEPENDENT'):preflight_gate(plan)
-    recovery.gate_observation()
+    preflight=plan['classification']=='HARNESS_PREFLIGHT'
+    recovery.gate_observation(services_stopped=not preflight)
+    if preflight:functional.safety(environment.classify(environment.processes()))
     collectors_absent()
 
 
@@ -187,7 +197,12 @@ class Capture:
             m=re.fullmatch(r'AETHER_CONTEXT_LOST run_id=(\d+) generation=\d+ state=failed terminal_count=1\n',line)
             if m:self.context_lost.add(int(m[1]))
     def audit(self,rows=None):
-        return process.inspect(self.proc.pid,self.ident,str(recovery.APP/'Contents/Resources/sidecar/node'),self.children,rows)
+        counts,audit=process.inspect(self.proc.pid,self.ident,str(recovery.APP/'Contents/Resources/sidecar/node'),self.children,rows)
+        if self.item['mode']!='resource':
+            services=functional.safety(counts)
+            audit.append(dict(kind='IDLE_SERVICES_VERIFIED',services=services))
+            counts={k:counts[k] for k in ('build_or_server','other_aether')}
+        return counts,audit
     def trace(self,gui,fixture):
         receipt_valid(gui,self.instance)
         events=[dict(e) for e in self.events if e['run_id']==gui['run_id']]
@@ -209,7 +224,10 @@ class Capture:
 
 def collect(folder,plan,item):
     gate(folder,plan)
-    if json.loads((folder/'baseline.json').read_text())['status']!='PASS':raise ValueError('BASELINE_NOT_PASS')
+    is_preflight=plan['classification']=='HARNESS_PREFLIGHT'
+    if is_preflight:
+        if json.loads((folder/'environment-observation.json').read_text())['safety_status']!='PASS':raise ValueError('SAFETY_OBSERVATION_NOT_PASS')
+    elif json.loads((folder/'baseline.json').read_text())['status']!='PASS':raise ValueError('BASELINE_NOT_PASS')
     directory=folder/f"{item['index']:02d}";directory.mkdir(exist_ok=False);(directory/'controls').mkdir()
     exe=str(recovery.APP/'Contents/MacOS/aether-desktop')
     proc=subprocess.Popen([exe,'--benchmark-smoke'],cwd=directory,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
@@ -382,6 +400,11 @@ def finalize(kind,folder,plan):
     summary=dict(classification=plan['classification'],source_sha=plan['source_sha'],artifact_hash=plan['artifact_hash'],
                  status=status,planned=6,attempted=sum((folder/f"{i:02d}"/'result.json').exists() for i in range(6)),
                  completed=complete,failures=failures,evidence=evidence)
+    if kind=='preflight':
+        summary['functional_status']=status
+        observation=folder/'environment-observation.json'
+        summary['environment_observation']=json.loads(observation.read_text())['environment_observation'] if observation.exists() else {'status':'NOT_RUN'}
+        if observation.exists():evidence['environment-observation.json']=base.sha(observation)
     write_new(folder/'summary.json',summary);print(json.dumps(summary))
 
 
@@ -407,8 +430,12 @@ def main():
         try:
             gate(folder,plan)
             if args.action=='baseline':
-                r=environment.baseline(folder/'baseline.json')
-                if r['status']!='PASS':stop(folder,'BASELINE_FAILED')
+                if args.kind=='preflight':
+                    r=functional.observe(folder/'environment-observation.json')
+                    if r['safety_status']!='PASS':stop(folder,'SAFETY_OBSERVATION_FAILED')
+                else:
+                    r=environment.baseline(folder/'baseline.json')
+                    if r['status']!='PASS':stop(folder,'BASELINE_FAILED')
                 return
             for item in plan['cases']:
                 if not (folder/f"{item['index']:02d}").exists():return collect(folder,plan,item)
