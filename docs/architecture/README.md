@@ -20,3 +20,5 @@
 - [결정적 Fixture 설계](p2-0-contract-fixtures.md) · NOT_RUN. 가상 clock/barrier와 기대 oracle; 실행 가능한 테스트나 실환경 증거가 아님.
 
 [Issue #46](https://github.com/Kim-Ji-Won/AETHER/issues/46)의 설계 리뷰 범위다. P0 Preflight 6/6 PASS와 E5c PARTIAL은 구분하며 Runtime A/B 선정·실제 Provider 호출·P2.1 구현을 승인하지 않는다.
+
+2026-11-15 사용자 후속 승인으로 P2.0 PR #47은 개발 기준선으로 병합됐다. [P2.1a Rust Host 구현/검증 기록](p2-1a-agent-run-contract.md)은 별도 Issue #48의 Draft 범위이며, 앞선 P2.0 설계 당시의 미실행 기록과 구분한다. Runtime A/B 선정·실제 Provider·P2.1b/c는 여전히 미착수다.

@@ -52,7 +52,7 @@ Completed 뒤 cleanup이 지연되면 즉시 succeeded로 표시하지 않는다
 
 | case | 고정 입력 순서 | 기대 oracle |
 |---|---|---|
-| C01 queued 취소 | Start → Cancel → cleanup 확인 | Created seq1 → CancelRequested seq2 → Cancelled seq3; dispatch=0, remote_outcome=not_dispatched |
+| C01 queued 취소 | Start → Cancel (host가 미생성 자원 확인, ACK 없음) | Created seq1 → CancelRequested seq2 → Cancelled seq3; dispatch=0, cleanup=not_required, remote_outcome=not_dispatched |
 | C02 delta 후 취소 | 정상 step1~3 → Cancel → Abort confirmed → RuntimeAck | seq4 CancelRequested, seq5 Cancelled; output=`안녕`을 partial로 표시, remote_outcome=unknown |
 | C03 취소가 완료보다 먼저 | before_terminal_commit 대기 → Cancel commit → Completed → 양쪽 cleanup 확인 | Completed 거부, RunSucceeded 0, RunCancelled 1 |
 | C04 완료가 취소보다 먼저 | Completed+cleanup commit → Cancel | RunSucceeded 1, Cancel ALREADY_TERMINAL, state 불변 |
@@ -140,3 +140,7 @@ L01/L02의 profile은 논리 dependency double이며 A/B 구현·Runtime 선정�
 6. 실제 external call, credential 접근, tool/audio effect는 0이다. 합성 문자열은 로그 정책 검사 외에 실제 개인정보를 포함하지 않는다.
 
 후속 구현 보고에는 `case ID / contract version / implementation SHA / policy / ordered steps / expected / observed / PASS|FAIL|BLOCKED|NOT_RUN`을 남긴다. fixture 정책, source SHA, 실제 호출 여부와 integration 범위를 분리한다. 현재는 전 case **NOT_RUN — 설계만 작성**이다.
+
+## P2.1a 구현 추적 · 2026-11-15
+
+위 NOT_RUN은 P2.0 설계 시점의 기록이다. 사용자 개발 기준선 수용 후 [Issue #48 구현/검증 기록](p2-1a-agent-run-contract.md)에서 C01–C12/I01–I12/E01–E15의 Host 검증과 후속 NOT_RUN 범위를 분리한다. C01의 cleanup 확인은 자원이 없다는 host 판정이며 Provider/Runtime의 가짜 ACK가 아니라는 점을 명확히 했다. 54개 전체가 실행됐다는 의미가 아니다.
