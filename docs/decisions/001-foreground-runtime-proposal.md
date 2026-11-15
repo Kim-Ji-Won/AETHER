@@ -34,6 +34,14 @@
 
 전체 Runtime 비교 완료를 위해서는 child discovery 보완의 별도 실행 검증, 새로운 사전 등록 지연 계획의 충분한 유효 n, 귀속 가능한 Host/Node CPU/RSS 및 lifecycle recovery 관찰이 남는다. 이번 실패 plan을 지우거나 성공 수를 채워 완료로 변경하지 않는다. 제한된 foreground 개발을 먼저 승인하는 경우에도 이 공백과 confidence가 낮다는 점을 결정 기록에 남겨야 한다.
 
+## 독립 Preflight / E5c 후속 재평가 · 2026-11-15
+
+[독립 후속 결과](../architecture/e5-independent-preflight-results.md)의 Harness source는 `744ff159719ba92281975b801d6b07242a0ee7d1`이다. identity/소멸 경계와 독립 E5c gate를 보완했고 38개 Unit/Regression Test를 통과했다. 그러나 단일 Preflight Baseline의 GPU drift 9.0pp가 사전 기준 5pp를 넘어 중단했다. Preflight 0/6, E5c 0/6으로 **앱 정상 종료·특별 race·자원 회수의 새 실측 증거는 없다**. 기존 30/144와 #27/#34 PARTIAL을 변경하지 않는다.
+
+E5c를 E5b 통계 완성과 분리하는 safety gate는 구현했지만, Preflight PASS 없이는 실행하지 않는다. 이번 BLOCKED는 Runtime A 또는 B의 실패 근거가 아니다. 따라서 위 A 조건부 개발 후보는 구조적 단순성에 근거한 제안으로만 유지하며 confidence를 높이지 않는다. A의 CPU/RSS가 더 작다는 결론도 내리지 않는다. Reload 지속성이 필수라면 B를 다시 검토해야 하며, resource/lifecycle/energy 공백은 양 후보 모두에 남는다.
+
+제한된 foreground 개발의 조건부 제안과 전체 P0 Runtime 검증 완료는 별개다. 새로운 E5b 144회 또는 미달 표본 보충은 이번 실행에 포함되지 않았다. 사용자가 요구·위험·보안 경계를 결정하기 전 P2 구현과 실제 Provider 요청은 시작하지 않는다. ADR 상태는 **PROPOSED**로 유지한다.
+
 ## P2 진입 계약 · 구현 전 결정할 최소 범위
 
 | 경계 | 제안과 완료 기준 |
