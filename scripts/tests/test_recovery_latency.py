@@ -137,4 +137,28 @@ class RecoverySafetyTests(unittest.TestCase):
                 self.assertEqual(z['terminal_count'],1)
                 self.assertEqual(z['outcome'],'succeeded' if f=='normal' else 'cancelled')
 
+class ChildDiscoveryTests(unittest.TestCase):
+    def test_child_spawn_before_stderr_discovery_is_not_external(self):
+        host=(1,'birth-host','/app/aether-desktop');child=(100,'birth-child','/app/sidecar/node')
+        identities={100:host,101:child}
+        rows=[(100,1,host[2]),(101,100,child[2])]
+        children={}
+        self.assertEqual(env.classify(rows,owned=(100,))['build_or_server'],1)
+        with patch.object(env,'processes',return_value=rows),patch.object(b.base,'identity',side_effect=identities.get):
+            self.assertFalse(any(b.owned_conflicts(100,host,child[2],children).values()))
+        self.assertEqual(children,{101:child})
+
+    def test_same_binary_under_foreign_parent_stays_blocked(self):
+        host=(1,'birth-host','/app/aether-desktop')
+        rows=[(100,1,host[2]),(101,200,'/app/sidecar/node')]
+        with patch.object(env,'processes',return_value=rows),patch.object(b.base,'identity',return_value=host):
+            self.assertEqual(b.owned_conflicts(100,host,'/app/sidecar/node',{})['build_or_server'],1)
+
+    def test_reused_host_identity_never_exempts_processes(self):
+        host=(1,'old-birth','/app/aether-desktop')
+        rows=[(100,1,host[2]),(101,100,'/app/sidecar/node')]
+        with patch.object(env,'processes',return_value=rows),patch.object(b.base,'identity',return_value=(1,'new-birth',host[2])):
+            counts=b.owned_conflicts(100,host,'/app/sidecar/node',{})
+            self.assertEqual((counts['build_or_server'],counts['other_aether']),(1,1))
+
 if __name__=='__main__':unittest.main()

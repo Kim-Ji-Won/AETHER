@@ -79,6 +79,25 @@ def competing_work(include_own_apps=False, owned=(), services_stopped=True):
     return environment.conflicts(owned=owned, services_stopped=services_stopped)
 
 
+def owned_conflicts(host_pid, host_identity, child_executable, children):
+    # Use one snapshot for classification and discovery: stderr may lag child_spawn.
+    rows = environment.processes()
+    owned = set()
+    if base.identity(host_pid) == host_identity:
+        owned.add(host_pid)
+        for pid, parent, executable in rows:
+            if parent != host_pid or executable != child_executable:
+                continue
+            ident = base.identity(pid)
+            if ident and ident[0] == host_pid and ident[2] == child_executable:
+                children[pid] = ident
+                owned.add(pid)
+        if base.identity(host_pid) != host_identity:
+            raise ValueError('HOST_IDENTITY_CHANGED_DURING_SNAPSHOT')
+    counts = environment.classify(rows, owned)
+    return {k: counts[k] for k in ('build_or_server', 'other_aether', 'postgres', 'docker')}
+
+
 def environment_key(env):
     return tuple(env[k] for k in ('macos_build','architecture','power_source','battery_state','thermal'))
 
@@ -157,7 +176,7 @@ def _collect(item, plan):
             try:q.put_nowait((time.monotonic_ns(),line.decode('utf-8')))
             except (queue.Full,UnicodeDecodeError):overflow.set()
     thread=threading.Thread(target=read,daemon=True);thread.start()
-    events=[];children={};external={};instance=None;problem=None;metrics={};last_check=0
+    events=[];children={};external={};instance=None;problem=None;metrics={};last_check=0;conflict_counts=None
     print(json.dumps({'index':item['index'],'variant':item['variant'],'fixture':item['fixture'],'instrumented':item['instrumented'],'pid':proc.pid}),flush=True)
     base.save(OUT/'current.json',dict(item,pid=proc.pid,status='RUNNING'))
     try:
@@ -166,7 +185,8 @@ def _collect(item, plan):
             if overflow.is_set():raise ValueError('OUTPUT_LIMIT')
             if time.monotonic()-last_check>1:
                 last_check=time.monotonic()
-                if any(competing_work(owned=(proc.pid, *[p for p,i in children.items() if base.identity(p)==i])).values()):raise ValueError('ENVIRONMENT_CONFLICT')
+                conflict_counts=owned_conflicts(proc.pid,owned,childexe,children)
+                if any(conflict_counts.values()):raise ValueError('ENVIRONMENT_CONFLICT')
                 ac_gate(base.environment())
             try:received,line=q.get(timeout=.02)
             except queue.Empty:continue
@@ -230,7 +250,7 @@ def _collect(item, plan):
     result=dict(item,classification='E5B_RECOVERY',source_sha=plan['source_sha'],artifact_hash=plan['artifact']['artifact_hash'],
         app_instance=instance,host_pid=proc.pid,host_exit_code=proc.returncode,environment_before=env,environment_after=endenv,
         status='TIMEOUT' if problem=='TIMEOUT' else 'EXCLUDED' if problem and problem.startswith('ENVIRONMENT') else 'FAIL' if problem else 'PASS',
-        failure_reason=problem,metrics=metrics,gui='PENDING_OBSERVATION',events=events)
+        failure_reason=problem,conflict_counts=conflict_counts,metrics=metrics,gui='PENDING_OBSERVATION',events=events)
     if problem:
         with (OUT/'stop.json').open('x') as f:json.dump(dict(index=item['index'],reason=problem),f)
     base.save(directory/'result.json',result);base.save(OUT/'current.json',dict(item,status=result['status']))

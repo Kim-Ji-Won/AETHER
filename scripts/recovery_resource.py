@@ -67,7 +67,8 @@ def session(item,plan):
             if now>=next_sample:
                 next_sample=now+1
                 live={p:i for p,i in children.items() if latency.base.identity(p)==i}
-                if any(latency.competing_work(owned=(proc.pid,*live)).values()):raise ValueError('ENVIRONMENT_CONFLICT')
+                counts=latency.owned_conflicts(proc.pid,ident,str(latency.APP/'Contents/Resources/sidecar/node'),children)
+                if any(counts.values()):raise ValueError('ENVIRONMENT_CONFLICT')
                 latency.ac_gate(latency.base.environment())
                 samples.append(dict(elapsed_seconds=now-start,host=latency.base.sample(proc.pid,ident),
                                     children={str(p):latency.base.sample(p,i) for p,i in live.items()}))
