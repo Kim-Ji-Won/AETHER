@@ -4,13 +4,14 @@
 - 날짜: 2026-11-15
 - Issue: [#44](https://github.com/Kim-Ji-Won/AETHER/issues/44)
 - 선행: [RFC 001 PROPOSED](../architecture/rfc-001-aether-system.md), [E4 비교 계획](../architecture/e4-runtime-comparison-plan.md), [독립 Recovery 결과](../architecture/e5-recovery-results.md)
+- 최신 실행: [Gate 분리 결과](../architecture/e5-gate-split-results.md) — Preflight 6/6 PASS, E5c PARTIAL/유효0/6.
 - 결정 권한: 사용자 승인 전 Runtime 선정·ACCEPTED·P2 실행 없음.
 
 ## 배경과 근거 범위
 
 첫 개발용 대화는 메시지 입력 → 실제 모델 요청 → 응답 표시 → 진행·취소·오류·사용자 재시도까지만 목표로 한다. 마이크·TTS·기억·컴퓨터 제어·상시 백그라운드 실행은 제외한다. 기존 Rust 원장, native 승인 경계, A/B 독립 이벤트 계약을 재사용하며 새 아키텍처를 처음부터 설계하지 않는다.
 
-기존 E5b #27/#34는 144회 중 본 측정 A normal/cancel n30, B 각각 n29와 TIMEOUT 2건이 있는 PARTIAL이다. 이번 #44도 144회 계획 중 30회에서 중단해 유효 본 측정 n4~5, ON/OFF NOT_RUN, E5c BLOCKED이다. 두 실행의 환경·source가 다르므로 표본을 합치지 않는다. 새 실행이 원본 PARTIAL을 해결했다고 볼 수 없다.
+기존 E5b #27/#34는 144회 중 본 측정 A normal/cancel n30, B 각각 n29와 TIMEOUT 2건이 있는 PARTIAL이다. 최초 #44 recovery도 144회 계획 중 30회에서 중단해 유효 본 측정 n4~5, ON/OFF NOT_RUN, E5c BLOCKED이다. 두 실행의 환경·source가 다르므로 표본을 합치지 않는다. 새 실행이 원본 PARTIAL을 해결했다고 볼 수 없다.
 
 [2026-11-12 E4e 기록](../architecture/e4e-lifecycle-safety.md)은 A reload 시 context loss를 failed terminal로 표시하고, B는 Host/child 작업 유지·재구독이 가능함을 보여준다. 전체 matrix는 당시 이전 실행 파일, 최종 파일은 수정 후 주요 Quit·정상/회귀 검증에 해당한다. 이번 작업에서 matrix를 재실행하지 않았다. 실제 renderer crash는 여전히 NOT_RUN이다.
 
@@ -20,9 +21,9 @@
 |---|---|---|---|
 | Foreground 짧은 텍스트 대화 | 기존 UI/TS와 연결, 추가 child 없음 | 독립 실행 단위·TS 라이브러리 선택 폭 | 둘 다 기능 후보. 새 실측만으로 우승자 없음 |
 | Reload 중 작업 지속 필수인가 | context loss로 명시 실패/중단하는 정책 필요 | fake 작업의 지속·snapshot 재연결 기록 있음 | 첫 개발 버전은 중단 허용을 **제안**. 사용자가 지속성을 필수로 정하면 B 재평가 |
-| 취소·실패·Quit 회수 | Rust terminal 직렬화, renderer 소멸 처리 | child handle·pipe·wait/reap 추가 책임 | E4 기록과 이번 완료 trial의 좁은 범위만 확인. E5c 자원 회수 반복은 미수집 |
+| 취소·실패·Quit 회수 | Rust terminal 직렬화, renderer 소멸 처리 | child handle·pipe·wait/reap 추가 책임 | E4와 새 Preflight6개 지정 사례 확인. E5c는 첫 A session 중단으로 정상 Quit·반복 회수 미완료 |
 | 시작·첫 progress·terminal 지연 | 이번 normal p50 첫 progress 약103ms | 이번 normal p50 약130ms, Node 준비 약25ms | n5/n4이고 100ms synthetic fixture. 실제 대화 UX의 실질 차이·인과 우위로 해석 불가 |
-| Host CPU/RSS, Node overhead | WebKit 귀속 미확인 | Node별 귀속 가능한 경로를 준비 | 이번 E5c 미실행으로 실행 자원 차이 UNKNOWN |
+| Host CPU/RSS, Node overhead | WebKit 귀속 미확인 | Node별 귀속 가능한 경로를 준비 | A 중단 session의 Host 기술 통계만 수집. B 미실행으로 A/B 실행 자원 차이 UNKNOWN |
 | bundle 크기 | 추가 Node executable을 요구하지 않는 구조 | 고정 앱의 Node executable 약111.5MB | combined 앱 구성 크기 근거만 있음. A-only/B-only 배포 비교 아님 |
 | 전력·상주 효율 | 미측정 | 미측정 | 어느 쪽도 에너지 효율 우위 주장 불가 |
 
@@ -32,7 +33,7 @@
 
 이 제안을 사용하려면 사용자가 다음 조건을 명시적으로 수용해야 한다: Reload/Quit에서 진행 대화를 명시 중단하고 자동 재시도하지 않음, hidden 지속성·상시 실행을 약속하지 않음, 응답/원장은 Rust 기준, 장기 API key는 WebView/Node에 제공하지 않음. 이 조건이 부적합하면 A를 채택하지 않고 B의 window-independent 요구·resource/배포 비용 검증을 우선한다. 두 후보 모두 보안·수명주기 기준을 만족하지 못하면 제3 후보 구현을 조용히 시작하지 않고 요구를 재검토한다.
 
-전체 Runtime 비교 완료를 위해서는 child discovery 보완의 별도 실행 검증, 새로운 사전 등록 지연 계획의 충분한 유효 n, 귀속 가능한 Host/Node CPU/RSS 및 lifecycle recovery 관찰이 남는다. 이번 실패 plan을 지우거나 성공 수를 채워 완료로 변경하지 않는다. 제한된 foreground 개발을 먼저 승인하는 경우에도 이 공백과 confidence가 낮다는 점을 결정 기록에 남겨야 한다.
+전체 Runtime 비교 완료를 위해서는 새 Preflight 밖의 안전성 범위, 새로운 사전 등록 지연 계획의 충분한 유효 n, 귀속 가능한 Host/Node CPU/RSS 및 lifecycle recovery 관찰이 남는다. 이번 실패 plan을 지우거나 성공 수를 채워 완료로 변경하지 않는다. 제한된 foreground 개발을 먼저 승인하는 경우에도 이 공백과 confidence가 낮다는 점을 결정 기록에 남겨야 한다.
 
 ## 독립 Preflight / E5c 후속 재평가 · 2026-11-15
 
@@ -41,6 +42,14 @@
 E5c를 E5b 통계 완성과 분리하는 safety gate는 구현했지만, Preflight PASS 없이는 실행하지 않는다. 이번 BLOCKED는 Runtime A 또는 B의 실패 근거가 아니다. 따라서 위 A 조건부 개발 후보는 구조적 단순성에 근거한 제안으로만 유지하며 confidence를 높이지 않는다. A의 CPU/RSS가 더 작다는 결론도 내리지 않는다. Reload 지속성이 필수라면 B를 다시 검토해야 하며, resource/lifecycle/energy 공백은 양 후보 모두에 남는다.
 
 제한된 foreground 개발의 조건부 제안과 전체 P0 Runtime 검증 완료는 별개다. 새로운 E5b 144회 또는 미달 표본 보충은 이번 실행에 포함되지 않았다. 사용자가 요구·위험·보안 경계를 결정하기 전 P2 구현과 실제 Provider 요청은 시작하지 않는다. ADR 상태는 **PROPOSED**로 유지한다.
+
+## Gate 분리 후 실제 검증 · 2026-11-15
+
+Harness source `ca4bcd90dc2b4d4428420bcb91c8e33c4aa70b96`에서 고정 앱으로 Preflight6/6을 통과했다. A/B 정상·취소, stderr 등록 지연 중 자기 Node 발견, Child/Host snapshot 후 정상 소멸을 실제 GUI·Ledger·identity·reap와 대조했다. 이는 지정된 Harness 기능·안전성 근거이며 실제 Provider나 전체 Runtime safety 인증은 아니다. GPU/WindowServer drift는 Preflight의 별도 관찰값이며 이번 실행은 STABLE_OBSERVED였다.
+
+독립 E5c Baseline은 PASS였지만 첫 A session이 GUI·도구 왕복을 포함한400초 deadline에 도달했다. A Foreground/Hidden FAKE_OK, 취소, Reload context loss/failed terminal까지8phase를 확인했으나 마지막 Recovery·정상 Quit 미완료, Host exit-15로 유효session은0/6이다. B Resource는 NOT_RUN이다. 396개 Host sample은 중단 session의 기술 통계로만 보존한다. 서로 다른 길이의 phase 평균과 B 미수집 결과로 CPU/RSS 우열을 주장하지 않는다.
+
+A의 구조적 단순성에 근거한 foreground-only 조건부 후보 제안은 유지하되 성능 추천으로 강화하지 않는다. Reload 중단을 수용하는 요구라면 새 제한적 안전성 증거를 참고할 수 있다. Reload 지속성이 필수이거나 B의 자원/회수 비용 판단이 필요하면 미수집 근거를 먼저 보완해야 한다. Energy/WebKit/장기 증가·다른 Mac 공백은 그대로다. Runtime 선택·ADR ACCEPTED·P2 착수는 승인되지 않았다.
 
 ## P2 진입 계약 · 구현 전 결정할 최소 범위
 
@@ -59,7 +68,7 @@ E5c를 E5b 통계 완성과 분리하는 safety gate는 구현했지만, Preflig
 
 ## 불확실성, 재검토와 복구
 
-E5c CPU/RSS·반복 recovery, WebKit 귀속, GPU/energy, battery, 장시간 상주, 실제 renderer crash, 다른 Mac, 서명/공증은 새 근거가 없다. 추가 child가 없다는 사실만으로 A의 전체 CPU/RSS가 작다고 추정하지 않는다. 작은 표본의 p95나 fake 100ms 지연을 실제 모델 요청의 tail latency로 사용하지 않는다.
+E5c는 A 중단 session의 Host CPU/RSS만 관찰했다. B 자원·정상session 반복 recovery, WebKit 귀속, GPU/energy, battery, 장시간 상주, 실제 renderer crash, 다른 Mac, 서명/공증은 새 근거가 없다. 추가 child가 없다는 사실만으로 A의 전체 CPU/RSS가 작다고 추정하지 않는다. 작은 표본의 p95나 fake 100ms 지연을 실제 모델 요청의 tail latency로 사용하지 않는다.
 
 Reload 지속성이 필수로 바뀜, 긴 tool chain/백그라운드 요구, WebView library 제약, 반복 측정에서 deadline/회수 실패, 실제 provider 오류·보안 경계 미충족, 자원/에너지 예산 초과가 확인되면 결정을 재검토한다. 같은 Event Contract와 Rust 원장으로 Runtime을 교체할 수 있도록 책임을 분리하되, migration 가능성을 실험 없이 완료로 주장하지 않는다. 이번 변경은 측정 도구와 문서뿐이므로 앱의 데이터 migration이나 Runtime 전환은 없다.
 
