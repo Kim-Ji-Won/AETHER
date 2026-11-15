@@ -1,0 +1,62 @@
+/* #42 Spatial Presence: DOM materials share a background with the transparent
+   Particle canvas; no image backdrop, per-frame React lighting or extra renderer. */
+.spatial-shell{--muted:#a5b6c9;--accent:#91ddf5;color:#e7eef6;grid-template-columns:64px minmax(0,1fr);min-height:0;background:radial-gradient(ellipse 90% 76% at 48% 63%,#101b2c 0%,#0c1420 45%,#06090f 83%);position:relative}
+.spatial-shell:before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 65% 24% at 57% 88%,#18293855,transparent 90%),linear-gradient(118deg,transparent 32%,#777da805 60%,transparent 80%)}
+.spatial-shell .sidebar{padding:18px 12px;gap:16px;border:0;box-shadow:none;background:none;width:64px}
+.spatial-shell .brand,.spatial-shell .sidebar-bottom{display:none}
+.spatial-shell .nav-toggle{width:40px;height:40px;border-color:transparent;padding:8px;color:#a5b6c9}
+.spatial-shell nav{gap:12px}.spatial-shell nav button{width:40px;min-height:40px;height:40px;padding:9px;color:#8c9fb2;border:1px solid transparent;border-radius:11px}
+.spatial-shell nav button:hover{background:#a7cce519;color:#d4e7f5;border-color:transparent}
+.spatial-shell nav button[aria-current]{color:#91ddf5;background:linear-gradient(130deg,#91ddf51a,#91ddf507);border-color:#b7d7e517;box-shadow:inset 0 1px #d4f5ff16}
+.spatial-shell :is(button,a,input,textarea,select):focus-visible{outline:2px solid #c4f3ff;outline-offset:3px}
+.spatial-shell .sidebar.nav-expanded{width:216px;background:#0d1726f5;border-right:1px solid #aecddd20;box-shadow:16px 0 30px #0003}
+.spatial-shell .nav-expanded nav button{width:100%;height:auto;min-height:44px;justify-content:flex-start}
+.spatial-shell .workspace{position:relative;padding:20px 24px 14px;min-height:0}
+.spatial-shell .presence-header{margin-bottom:10px;min-height:40px;align-items:center}
+.spatial-shell .connection,.spatial-shell .context-toggle{height:36px;font-size:12px;padding:0 12px;border-radius:10px;color:#a5b6c9;border:1px solid #acc9de16;background:#17263525;box-shadow:none}
+.spatial-shell .context-toggle[aria-expanded=true],.spatial-shell .status-toggle[aria-expanded=true]{color:#d8eff9;background:#91ddf512;border-color:#91ddf53d}
+.spatial-shell .main-page{position:relative;grid-template-rows:minmax(0,1fr) auto;gap:0}
+.spatial-shell .main-stage{margin:0 0 18px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.spatial-shell .scene-viewport{padding:0;border:0;background:none;display:block;overflow:hidden}
+.spatial-shell .scene-viewport:before,.spatial-shell .scene-viewport:after{display:none}
+.spatial-shell .command-dock-wrap{width:100%;max-width:800px;justify-self:center;padding-top:0}
+.spatial-shell .command-dock{position:relative;min-height:60px;max-height:120px;padding:9px 10px;gap:8px;border-radius:19px;border:1px solid #b9d6e916;border-top-color:#c7e6f12b;border-bottom-color:#04080e99;background:linear-gradient(155deg,#22374661,#17263570 45%,#101923b3);box-shadow:0 12px 28px #00000038,inset 0 1px #dbf5ff08}
+.spatial-shell .command-dock:before{content:'';position:absolute;height:1px;top:-1px;left:18%;right:18%;background:linear-gradient(90deg,transparent,#baddeb19 24%,#b4e9f77a 50%,#baddeb19 76%,transparent);pointer-events:none}
+.spatial-shell .command-dock button{width:36px;height:40px;flex-basis:36px;border:0;background:transparent;color:#8294a4;box-shadow:none;opacity:.72}
+.spatial-shell .draft-field textarea{font-size:14px;line-height:20px;padding:9px 4px;color:#e7eef6}
+.spatial-shell .draft-field textarea::placeholder{color:#a5b6c9}
+.spatial-shell .dock-notice{font-size:11px;line-height:1.5;text-align:center;margin:8px 2px 0;color:#a5b6c9}
+.spatial-shell .presence-workspace :is(.context-panel,.status-area){width:min(250px,100%);padding:18px;border:1px solid #c5dce51b;border-left-color:#b5e5f343;border-radius:16px;background:linear-gradient(115deg,#263d4f99,#132032f0 70%);box-shadow:10px 18px 38px #00000032}
+.spatial-shell .context-item{font-size:13px;gap:10px;padding:16px 0}.spatial-shell .context-item small{font-size:12px}
+.spatial-shell .panel-heading button{font-size:12px;min-height:36px}
+.spatial-shell .status-area>div{font-size:12px}.spatial-shell .status-area strong{font-size:14px}
+.spatial-shell .preview-stop{position:absolute;z-index:3;top:0;left:0;font-size:12px;color:#a5b6c9;background:#17263555;border-color:#91ddf52b}
+.spatial-shell .panel{background:linear-gradient(125deg,#17263599,#0e1725cc);border:1px solid #a8c3d526;box-shadow:inset 0 1px #ffffff08}
+.spatial-shell .page-scroll{padding-top:6px}.spatial-shell .scene-report{font-size:11px}
+.spatial-shell[data-visual-phase=listening] .command-dock:before{background:linear-gradient(90deg,transparent,#91ddf580,transparent)}
+.spatial-shell[data-visual-phase=speaking] .command-dock:before{background:linear-gradient(90deg,transparent,#d5efff90,transparent)}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+ .spatial-shell .command-dock{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+ .spatial-shell .presence-workspace :is(.context-panel,.status-area){background:linear-gradient(115deg,#263d4f73,#132032b3 70%);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+}
+@media(max-width:700px){
+ .spatial-shell{grid-template-columns:minmax(0,1fr)}
+ .spatial-shell .sidebar{position:absolute;left:0;top:0;padding:14px 12px;width:64px;height:auto;gap:0}
+ .spatial-shell .sidebar:not(.nav-expanded) nav{display:none}
+ .spatial-shell .sidebar.nav-expanded{width:232px;padding-bottom:20px;max-height:calc(100% - 170px);overflow:auto;border-radius:0 0 16px 0}
+ .spatial-shell .nav-expanded nav{margin-top:12px}
+ .spatial-shell .workspace{padding:14px 12px 12px}
+ .spatial-shell .page-header{min-height:40px;margin-bottom:12px;align-items:center}
+ .spatial-shell .page-header:not(.presence-header){padding-left:52px}
+ .spatial-shell .page-header .eyebrow{display:none}
+ .spatial-shell .page-header h1{font-size:20px}
+ .spatial-shell .header-actions{gap:6px}
+ .spatial-shell .connection,.spatial-shell .context-toggle{font-size:12px;padding:0 10px}
+ .spatial-shell .context-toggle svg{display:none}
+ .spatial-shell .main-stage{margin-bottom:12px}
+ .spatial-shell .command-dock{padding:9px 8px;gap:6px}
+ .spatial-shell .command-dock button{width:32px;flex-basis:32px}
+ .spatial-shell .draft-field textarea{font-size:13px}
+ .spatial-shell .presence-workspace :is(.context-panel,.status-area){width:100%;max-height:100%}
+ .spatial-shell .dock-notice{font-size:11px}
+}

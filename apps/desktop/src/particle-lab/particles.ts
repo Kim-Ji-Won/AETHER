@@ -58,8 +58,9 @@ void main(){
   gl_FragColor=vec4(color*1.9,soft*vAlpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  #include <premultiplied_alpha_fragment>
 }`;
-export function createParticles(quality:'balanced'|'high') {
+export function createParticles(quality:'balanced'|'high',premultiplied=false) {
   const count=particleCounts[quality],data=particleData(count);
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.BufferAttribute(data.positions,3));
@@ -67,7 +68,7 @@ export function createParticles(quality:'balanced'|'high') {
   geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(),particleBound);
   const uniforms={uForwardFast:{value:0},uForwardSlow:{value:0},uForwardEnabled:{value:1},uTime:{value:0},uLevel:{value:0},uThinking:{value:0},uRadius:{value:1},uSpeaking:{value:0},uCameraDistance:{value:6.5},uDpr:{value:1},uDensity:{value:12000/count}};
   const material=new THREE.ShaderMaterial({uniforms,vertexShader:vertex,fragmentShader:fragment,
-    transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending});
+    premultipliedAlpha:premultiplied,transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending});
   const points=new THREE.Points(geometry,material);
   let disposed=false;
   return {points,uniforms,count,bytes:data.positions.byteLength+data.traits.byteLength,
