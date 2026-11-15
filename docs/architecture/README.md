@@ -13,3 +13,10 @@
 - [개발 로드맵](../engineering/development-roadmap.md) · PROPOSED. P0~P7의 선행 조건과 완료 기준.
 
 [E4a Issue #15](https://github.com/Kim-Ji-Won/AETHER/issues/15)는 문서 준비 단계입니다. 실험 결과와 별도 승인 후에 [ADR](../decisions/README.md)로 결정을 기록합니다.
+
+## P2.0 Runtime-independent 계약 준비
+
+- [Agent Runtime 계약 명세](p2-0-agent-runtime-contract.md) · PROPOSED / DESIGN_ONLY. 상태·identity·event·cancel·오류·Provider/credential·UI 경계.
+- [결정적 Fixture 설계](p2-0-contract-fixtures.md) · NOT_RUN. 가상 clock/barrier와 기대 oracle; 실행 가능한 테스트나 실환경 증거가 아님.
+
+[Issue #46](https://github.com/Kim-Ji-Won/AETHER/issues/46)의 설계 리뷰 범위다. P0 Preflight 6/6 PASS와 E5c PARTIAL은 구분하며 Runtime A/B 선정·실제 Provider 호출·P2.1 구현을 승인하지 않는다.

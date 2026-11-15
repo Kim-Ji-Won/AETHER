@@ -34,8 +34,11 @@
 
 ## P2 — Agent Runtime
 
+2026-11-15: [Issue #46](https://github.com/Kim-Ji-Won/AETHER/issues/46)에서 Runtime A/B 결정과 독립적인 P2.0 **설계 준비만** 진행한다. [계약 명세](../architecture/p2-0-agent-runtime-contract.md)와 [Fixture 설계](../architecture/p2-0-contract-fixtures.md)는 PROPOSED / NOT_RUN이다. P0 [PR #45](https://github.com/Kim-Ji-Won/AETHER/pull/45)의 Preflight 6/6 PASS는 E5c PARTIAL(유효 session 0/6)을 해소하지 않는다. P2.1 구현·Runtime 선정·실제 호출 gate는 유지한다.
+
 | 작업 / 사용자 가치 | 선행 | 구현 범위 / 제외 | 산출물 | 검증과 완료 조건 | 승인·보안 영향 |
 |---|---|---|---|---|---|
+| P2.0 · Agent Runtime Contract Preparation | 기존 RFC/E4 계약, 사용자 설계 승인 범위 | Runtime-independent state/event/cancel/error/Provider/UI 계약 및 Fixture 설계 / 구현·Build/Test/GUI·실제 호출 제외 | 계약 초안·전이표·결정적 Fixture·P2.1 최소 작업 순서 | 정적 문서·diff 검사, Draft PR 제출 후 사용자 설계 리뷰 | 키 접근·새 dependency 없음, Runtime 선택·병합은 별도 승인 |
 | P2.1 제안 · 텍스트 작업 진행·취소 표시 | E4/E5 결정, P1.1 | Rust ledger, Runtime·ordered events, Fake Provider / 실제 AI 제외 | Command Center 상태 연결과 진단 | reload·cancel·late result 후 UI와 host 일치, Mock 명시 | 좁은 IPC와 timeout, 민감 로그 제외 |
 | P2.2 제안 · 첫 실제 텍스트 응답 | P2.1, provider·credential·비용 승인 | Responses adapter, stream/cancel, 개발 BYOK 또는 제한 backend / 도구 실행·음성 제외 | auth·quota·오류·폐기 경로 | 합성 질문 실제 응답, 키 비노출, 401/429/offline·rotation 검증 | 외부 데이터 전송 설명·동의, 운영 키 WebView 금지 |
 | P2.3 제안 · 제한 사용자용 연결 | P2.2, backend 운영 결정 | 앱 인증·사용량 제한과 서버 키 회전 / 공개 출시 제외 | Managed Backend 최소 경로·운영 문서 | 만료 로그인·과한 요청 거부, 로그/비용/장애 복구 | 서버 운영·개인정보 승인, Axiom 의존성 없음 |
