@@ -17,6 +17,7 @@ import sys
 sys.dont_write_bytecode = True
 import benchmark as base
 import recovery_environment as environment
+import recovery_process as process
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT/'target/recovery-44'
@@ -80,22 +81,8 @@ def competing_work(include_own_apps=False, owned=(), services_stopped=True):
 
 
 def owned_conflicts(host_pid, host_identity, child_executable, children):
-    # Use one snapshot for classification and discovery: stderr may lag child_spawn.
-    rows = environment.processes()
-    owned = set()
-    if base.identity(host_pid) == host_identity:
-        owned.add(host_pid)
-        for pid, parent, executable in rows:
-            if parent != host_pid or executable != child_executable:
-                continue
-            ident = base.identity(pid)
-            if ident and ident[0] == host_pid and ident[2] == child_executable:
-                children[pid] = ident
-                owned.add(pid)
-        if base.identity(host_pid) != host_identity:
-            raise ValueError('HOST_IDENTITY_CHANGED_DURING_SNAPSHOT')
-    counts = environment.classify(rows, owned)
-    return {k: counts[k] for k in ('build_or_server', 'other_aether', 'postgres', 'docker')}
+    counts, _audit = process.inspect(host_pid, host_identity, child_executable, children)
+    return counts
 
 
 def environment_key(env):
@@ -164,7 +151,7 @@ def _collect(item, plan):
     launch=time.monotonic_ns()
     proc=subprocess.Popen(args,cwd=directory,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
         env={'PATH':'/usr/bin:/bin','AETHER_BENCH_TRIAL':item['trial_id'],'AETHER_BENCH_VARIANT':item['variant']})
-    owned=base.identity(proc.pid)
+    owned=process.identity(proc.pid)
     if not owned or owned[2]!=str(exe):
         raise ValueError('HOST_IDENTITY_UNVERIFIED_NO_TERMINATION')
     q=queue.Queue(256);overflow=threading.Event()
@@ -201,7 +188,7 @@ def _collect(item, plan):
                 if match and int(match[2])==proc.pid:instance=match[1]
                 match=re.search(r'AETHER_SIDECAR pid=(\d+) parent=(\d+) .*executable=Contents/Resources/sidecar/node ',line)
                 if match and int(match[2])==proc.pid:
-                    pid=int(match[1]); ident=base.identity(pid)
+                    pid=int(match[1]); ident=process.identity(pid)
                     if ident and ident[0]==proc.pid and ident[2]==childexe:children[pid]=ident
                 # Common external observation in ON and OFF: same existing fixed diagnostic lines.
                 match=re.search(r'^AETHER_FAKE variant=(webview-a|node-b) .* seq=(\d+) type=(start|progress|terminal) value=(|25|50|75|FAKE_OK) state=(running|succeeded) terminal_count=([01]) ',line)
@@ -231,16 +218,16 @@ def _collect(item, plan):
         problem=str(exc) if re.fullmatch('[A-Z_]+',str(exc)) else 'INVALID_DIAGNOSTIC'
     finally:
         if proc.poll() is None:
-            if base.identity(proc.pid)==owned:
+            if process.identity(proc.pid)==owned:
                 proc.terminate()
                 try:proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:problem='HOST_REMAINED'
             else:problem='HOST_IDENTITY_LOST'
         thread.join(timeout=2)
         deadline=time.monotonic()+5
-        while any(base.identity(pid)==ident for pid,ident in children.items()) and time.monotonic()<deadline:time.sleep(.1)
+        while any(process.identity(pid)==ident for pid,ident in children.items()) and time.monotonic()<deadline:time.sleep(.1)
         for pid,ident in children.items():
-            if base.identity(pid)==ident:problem='CHILD_REMAINED'
+            if process.identity(pid)==ident:problem='CHILD_REMAINED'
         if not thread.is_alive():proc.stderr.close()
     endenv=base.environment()
     if endenv['power_source']!='AC':problem=problem or 'ENVIRONMENT_AC_REQUIRED'

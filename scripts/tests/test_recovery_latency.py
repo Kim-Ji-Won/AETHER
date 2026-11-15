@@ -138,27 +138,60 @@ class RecoverySafetyTests(unittest.TestCase):
                 self.assertEqual(z['outcome'],'succeeded' if f=='normal' else 'cancelled')
 
 class ChildDiscoveryTests(unittest.TestCase):
-    def test_child_spawn_before_stderr_discovery_is_not_external(self):
-        host=(1,'birth-host','/app/aether-desktop');child=(100,'birth-child','/app/sidecar/node')
-        identities={100:host,101:child}
-        rows=[(100,1,host[2]),(101,100,child[2])]
-        children={}
-        self.assertEqual(env.classify(rows,owned=(100,))['build_or_server'],1)
-        with patch.object(env,'processes',return_value=rows),patch.object(b.base,'identity',side_effect=identities.get):
-            self.assertFalse(any(b.owned_conflicts(100,host,child[2],children).values()))
-        self.assertEqual(children,{101:child})
-
-    def test_same_binary_under_foreign_parent_stays_blocked(self):
-        host=(1,'birth-host','/app/aether-desktop')
-        rows=[(100,1,host[2]),(101,200,'/app/sidecar/node')]
-        with patch.object(env,'processes',return_value=rows),patch.object(b.base,'identity',return_value=host):
-            self.assertEqual(b.owned_conflicts(100,host,'/app/sidecar/node',{})['build_or_server'],1)
-
-    def test_reused_host_identity_never_exempts_processes(self):
-        host=(1,'old-birth','/app/aether-desktop')
-        rows=[(100,1,host[2]),(101,100,'/app/sidecar/node')]
-        with patch.object(env,'processes',return_value=rows),patch.object(b.base,'identity',return_value=(1,'new-birth',host[2])):
-            counts=b.owned_conflicts(100,host,'/app/sidecar/node',{})
-            self.assertEqual((counts['build_or_server'],counts['other_aether']),(1,1))
+    host=(1,1000001,'/app/aether-desktop')
+    child=(100,2000001,'/app/sidecar/node')
+    @unittest.skipUnless(sys.platform=='darwin','Darwin libproc identity')
+    def test_real_owned_process_identity_and_normal_disappearance(self):
+        import os
+        proc=subprocess.Popen(['/bin/sleep','0.1'])
+        ident=b.process.identity(proc.pid)
+        self.assertEqual(ident[0],os.getpid());self.assertEqual(ident[2],'/bin/sleep')
+        self.assertIsInstance(ident[1],int);self.assertGreater(ident[1],0)
+        self.assertEqual(proc.wait(timeout=2),0)
+        self.assertIsNone(b.process.identity(proc.pid))
+    def rows(self, child=None):
+        c=child or self.child
+        return [(100,1,self.host[2],self.host,True),(101,c[0],c[2],c,True)]
+    def reconcile(self, rows, identities, children=None):
+        return b.process.reconcile(rows,100,self.host,self.child[2],{} if children is None else children,identities.get)
+    def test_discovery_without_stderr_and_known_child(self):
+        children={};ids={100:self.host,101:self.child}
+        counts,audit=self.reconcile(self.rows(),ids,children)
+        self.assertFalse(any(counts.values()));self.assertEqual(children,{101:self.child})
+        self.assertEqual(audit[0]['kind'],'CHILD_DISCOVERED')
+        self.assertEqual(self.reconcile(self.rows(),ids,children)[1][0]['kind'],'CHILD_CONFIRMED')
+    def test_normal_child_and_host_disappearance_are_observations_not_success(self):
+        counts,audit=self.reconcile(self.rows(),{}, {101:self.child})
+        self.assertFalse(any(counts.values()))
+        self.assertEqual([a['kind'] for a in audit],['HOST_DISAPPEARED','CHILD_DISAPPEARED'])
+        self.assertTrue(all('status' not in a for a in audit))
+    def test_unregistered_disappearance_blocks(self):
+        with self.assertRaisesRegex(ValueError,'UNREGISTERED_CHILD_DISAPPEARED'):
+            self.reconcile(self.rows(),{100:self.host})
+    def test_missing_snapshot_identity_blocks(self):
+        with self.assertRaisesRegex(ValueError,'SNAPSHOT_IDENTITY_UNAVAILABLE'):
+            self.reconcile([(101,100,self.child[2],None,True)],{})
+    def test_snapshot_ppid_or_executable_inconsistency_blocks(self):
+        for row in [(101,200,self.child[2],self.child,True),(101,100,'/other/node',self.child,True)]:
+            with self.assertRaisesRegex(ValueError,'SNAPSHOT_IDENTITY_CHANGED'):
+                self.reconcile([row],{101:self.child})
+    def test_pid_reuse_and_changed_executable_or_parent_block(self):
+        for changed in [(100,2000002,self.child[2]),(200,self.child[1],self.child[2]),(100,self.child[1],'/foreign/node')]:
+            with self.assertRaisesRegex(ValueError,'PID_REUSED_OR_IDENTITY_CHANGED'):
+                self.reconcile(self.rows(),{100:self.host,101:changed},{101:self.child})
+    def test_foreign_parent_never_owned_even_after_disappearance(self):
+        foreign=(200,2000001,self.child[2])
+        for identities in ({100:self.host,101:foreign},{100:self.host}):
+            counts,_=self.reconcile(self.rows(foreign),identities)
+            self.assertEqual(counts['build_or_server'],1)
+    def test_new_child_with_gone_host_blocks(self):
+        with self.assertRaisesRegex(ValueError,'CHILD_PARENT_UNVERIFIED'):
+            self.reconcile(self.rows(),{101:self.child})
+    def test_known_pid_reused_outside_snapshot_blocks(self):
+        with self.assertRaisesRegex(ValueError,'CHILD_IDENTITY_CHANGED'):
+            self.reconcile([],{101:(200,2000002,self.child[2])},{101:self.child})
+    def test_permission_failure_is_not_process_absence(self):
+        with self.assertRaises(PermissionError):
+            b.process.reconcile(self.rows(),100,self.host,self.child[2],{},lambda _:(_ for _ in ()).throw(PermissionError()))
 
 if __name__=='__main__':unittest.main()
