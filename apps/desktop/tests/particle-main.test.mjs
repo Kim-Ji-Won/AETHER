@@ -76,3 +76,23 @@ test('transparent composition preserves data and shader color pipeline; Lab rema
  assert.equal(main.points.material.fragmentShader.split('#include <premultiplied_alpha_fragment>').length,2);
  main.dispose();lab.dispose();
 });
+
+// Projection-only framing: unchanged Lab/mobile, continuous layout response and
+// stable time/generation/data when toggling the comparison mode.
+test('Main projection respects small/layout bounds and never changes Lab framing or preview time',async()=>{
+ const x=await host(),h=x.h,zoom=await h.exported('particle-lab/main-framing','mainProjectionZoom');
+ assert.equal(zoom(376,442),1);assert.equal(zoom(376,382),1);
+ assert.equal(zoom(788,510),1.12);assert.equal(zoom(1088,550),1.12);
+ assert.equal(zoom(788,280),1);assert.equal(zoom(NaN,500),1);
+ for(let w=375;w<900;w++)assert.ok(Math.abs(zoom(w+1,450)-zoom(w,450))<.001);
+ const create=await h.exported('particle-lab/renderer','createParticleRenderer');
+ h.unmount();clean(h);
+ const canvas=h.canvases[0];
+ const lab=create(canvas,snapshot(1,'speaking','preview'),{quality:'balanced',motion:false,gain:1,fault:'none'},()=>{},()=>{});
+ lab.resize(788,510);assert.equal(lab.stats().projectionZoom,1);lab.setReferenceFraming(false);assert.equal(lab.stats().projectionZoom,1);lab.dispose();
+ const main=create(canvas,snapshot(1,'speaking','preview'),{quality:'balanced',motion:false,gain:1,fault:'none',main:true},()=>{},()=>{});
+ main.resize(788,510);main.seek(5.05);const after=main.stats();main.setReferenceFraming(true);const before=main.stats();
+ assert.equal(after.projectionZoom,1.12);assert.equal(before.projectionZoom,1);
+ for(const k of ['generation','time','cameraY','cameraZ','particles','bytes','level','radius','forwardFast','forwardSlow'])assert.equal(after[k],before[k],k);
+ main.setReferenceFraming(false);assert.equal(main.stats().time,after.time);main.dispose();clean(h);
+});

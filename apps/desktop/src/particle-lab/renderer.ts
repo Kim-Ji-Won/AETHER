@@ -5,11 +5,13 @@ import type {VisualSnapshot} from '../scene/visual-state';
 import {ParticleVisualAdapter} from './visual-adapter';
 import {createMotion,type ParticlePhase} from './motion';
 import {createParticles} from './particles';
+import {mainProjectionZoom} from './main-framing';
 export interface LabOptions {quality:'balanced'|'high';fault:'none'|'shader'|'fallback';motion:boolean;gain:number;forward?:boolean;main?:boolean}
 export interface LabReport {
  health:'ready'|'lost'|'unavailable'|'disposed'; reason:string; generation:number;
  frames:number; raf:number; live:number; created:number; disposed:number;
  particles:number; draws:number; bytes:number; dpr:number; width:number; height:number;
+ cameraZ:number;cameraY:number;projectionZoom:number;referenceFraming:boolean;webviewWidth:number;webviewHeight:number;
  forwardEnabled:boolean; time:number; level:number; raw:number; inputLevel:number|null; outputLevel:number|null; syntheticInputLevel:number;syntheticOutputLevel:number;
  frameP50:number|null;frameP95:number|null;cpuP50:number|null;cpuP95:number|null;samples:number;lossSupported:boolean;
  gpuTime:'UNAVAILABLE';vram:'UNAVAILABLE';rss:'UNAVAILABLE';
@@ -27,10 +29,11 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
  let dead=false,lost=false,counted=false,available=false,raf=0,frames=0,draws=0,last=0,next=0,lastPublish=0;
  let width=1,height=1,dpr=1,motion=options.motion,gain=options.gain,phase:ParticlePhase='idle',forward=options.forward??true;
  let health:LabReport['health']='unavailable',reason='초기화 중',sample=clock.step(0,phase,gain);
- let preview=false,finished=false;
+ let preview=false,finished=false,referenceFraming=false;
  const intervals:number[]=[],cpu:number[]=[];
  const stats=():LabReport=>({health,reason,generation,frames,raf:raf?1:0,live:audit.live,created:audit.created,disposed:audit.disposed,
-   particles:particles?.count??0,draws,bytes:particles?.bytes??0,dpr,width,height,forwardEnabled:forward,...sample,
+   particles:particles?.count??0,draws,bytes:particles?.bytes??0,dpr,width,height,
+   cameraZ:camera.position.z,cameraY:camera.position.y,projectionZoom:camera.zoom,referenceFraming,webviewWidth:window.innerWidth,webviewHeight:window.innerHeight,forwardEnabled:forward,...sample,
    inputLevel:options.main?null:sample.inputLevel,outputLevel:options.main?null:sample.outputLevel,syntheticInputLevel:sample.inputLevel,syntheticOutputLevel:sample.outputLevel,
    frameP50:percentile(intervals,.5),frameP95:percentile(intervals,.95),cpuP50:percentile(cpu,.5),cpuP95:percentile(cpu,.95),samples:intervals.length,lossSupported:!!loss,gpuTime:'UNAVAILABLE',vram:'UNAVAILABLE',rss:'UNAVAILABLE'});
  function stop(){if(raf)cancelAnimationFrame(raf);raf=0;last=0;next=0;}
@@ -66,6 +69,7 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
  function resize(w:number,h:number){if(dead||lost||!renderer)return;available=w>0&&h>0;if(!available){refresh();return;}
    width=w;height=h;dpr=Math.min(window.devicePixelRatio||1,options.quality==='high'?1.5:1.25);
    renderer.setPixelRatio(dpr);renderer.setSize(w,h,false);if(particles)particles.uniforms.uDpr.value=dpr;
+   camera.zoom=options.main&&!referenceFraming?mainProjectionZoom(w,h):1;
    camera.aspect=w/h;const half=Math.min(38*Math.PI/360,Math.atan(Math.tan(38*Math.PI/360)*w/h));
    camera.position.set(0,.10,2.25/Math.tan(half));if(particles)particles.uniforms.uCameraDistance.value=camera.position.length();camera.lookAt(0,0,0);camera.updateProjectionMatrix();refresh();}
  function update(s:VisualSnapshot,enabled:boolean,amplitude:number,depthEnabled=forward){if(dead)return;
@@ -86,7 +90,10 @@ export function createParticleRenderer(canvas:HTMLCanvasElement,initial:VisualSn
    particles=createParticles(options.quality,!!options.main);scene.add(particles.points);renderer.compile(scene,camera);
    health='ready';update(initial,motion,gain);
  }catch(e){fail(e instanceof Error?e.message:'초기화 실패');}
- return {stats,resize,update,setMotion(enabled:boolean){if(dead)return;motion=enabled;refresh();},replay(){if(dead)return;finished=false;clock.reset();sample=clock.step(0,phase,gain);refresh();},
+ return {stats,resize,update,
+   setReferenceFraming(enabled:boolean){if(dead||!options.main)return;referenceFraming=enabled;resize(width,height);},
+   resetMetrics(){intervals.length=0;cpu.length=0;last=0;publish(stats());},
+   setMotion(enabled:boolean){if(dead)return;motion=enabled;refresh();},replay(){if(dead)return;finished=false;clock.reset();sample=clock.step(0,phase,gain);refresh();},
    seek(seconds:number){if(dead||!Number.isFinite(seconds))return;clock.reset();sample=clock.step(0,phase,gain);
      const steps=Math.round(Math.min(16,Math.max(0,seconds))*120);for(let i=0;i<steps;i++)sample=clock.step(1/120,phase,gain);motion=false;refresh();},
    lose(){if(!dead&&health==='ready')loss?.loseContext();},restore(){if(!dead&&lost)loss?.restoreContext();},

@@ -40,3 +40,11 @@ Selected/Hover/Focus를 구분하고 기존 접근 가능한 이름·숨긴 제�
 새 의존성, native 권한, Rust/Swift/Node/IPC/CSP 변경 없음. Renderer는 Runtime/승인 명령을 소유하지 않는다. #35의 실제 복원 후 재초기화 실패 검증은 NOT_RUN을 유지한다. P0 E5b #27/#34 및 이전 앱/캡처는 별도 보존한다.
 
 실제 검증 범위와 한계는 [검증 기록](../validation/spatial-presence-main.md)을 참조한다. 다음 단계는 실제 앱의 사용자 시각 리뷰이며 자동 merge나 실제 오디오 개발이 아니다.
+
+## Main Framing 보완 — 2026-11-15
+
+사용자의 별도 승인에 따라 Main의 투영 크기만 조정한다. `main-framing.ts`는 실제 Scene 폭/높이로 zoom 1–1.12를 계산한다. 폭 480–740px, 높이 300–480px 구간의 smoothstep을 곱하므로 작은 창, 높은 Dock, 열린 패널에서는 확대를 줄인다. 기본/넓은 창은 1.12, 400×680 기본 창은 1이다. 고정 레이아웃에서는 Preview 동안 zoom이 일정하며 음성 envelope나 시각 시계는 입력이 아니다.
+
+Camera 위치·바라보는 중심·nominal FOV 38°·near/far와 Particle/Motion/색상/point-size/guard 공식은 유지한다. zoom이 투영 행렬을 바꾸므로 Camera 설정까지 동일한 전후 비교라고 부르지 않는다. 독립 Lab은 항상 기존 zoom 1이다. Diagnostics에만 이전 투영 설정, 동일 시점 seek, 지표 초기화를 추가했다. 제품 UI 배치·소재는 변경하지 않았다.
+
+새 앱과 전후 비교의 증거·한계는 [Main Framing 검증](../validation/spatial-main-framing.md)을 참조한다. Motion 보강은 승인되지 않았으며 사용자 리뷰 뒤 별도 결정한다.
