@@ -5,6 +5,28 @@ mod fake_run;
 mod sidecar;
 mod lifecycle;
 mod measurement;
+mod agent_runtime;
+
+#[tauri::command]
+fn agent_bootstrap(window: tauri::WebviewWindow) -> Result<agent_runtime::View, String> {
+    agent_runtime::bootstrap(&window)
+}
+#[tauri::command]
+fn agent_start(window: tauri::WebviewWindow, request: tauri::ipc::Request<'_>) -> Result<agent_runtime::View, String> {
+    agent_runtime::command(&window, request.body(), "start")
+}
+#[tauri::command]
+fn agent_cancel(window: tauri::WebviewWindow, request: tauri::ipc::Request<'_>) -> Result<agent_runtime::View, String> {
+    agent_runtime::command(&window, request.body(), "cancel")
+}
+#[tauri::command]
+fn agent_snapshot(window: tauri::WebviewWindow, request: tauri::ipc::Request<'_>) -> Result<agent_runtime::View, String> {
+    agent_runtime::command(&window, request.body(), "snapshot")
+}
+#[tauri::command]
+fn agent_runtime_input(window: tauri::WebviewWindow, request: tauri::ipc::Request<'_>) -> Result<agent_runtime::View, String> {
+    agent_runtime::command(&window, request.body(), "runtime")
+}
 
 #[tauri::command]
 async fn start_node_fake_run(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(fake_run::Snapshot, u32, i32), String> {
@@ -71,16 +93,27 @@ fn main() {
     measurement::init();
     eprintln!("AETHER_INSTANCE instance={} pid={} time_ms={} executable=Contents/MacOS/aether-desktop", lifecycle::instance(), std::process::id(), lifecycle::now());
     tauri::Builder::default()
-        .setup(|app| { lifecycle::install_menu(app.handle())?; Ok(()) })
+        .setup(|app| {
+            agent_runtime::install(&lifecycle::instance());
+            lifecycle::install_menu(app.handle())?;
+            Ok(())
+        })
         .on_page_load(|webview, payload| {
             if webview.label() == "main" && matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
                 lifecycle::context_lost(webview.app_handle(), "page-started");
             }
+            if webview.label() == "main" && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                lifecycle::page_replaced();
+            }
         })
         .on_window_event(|window, event| {
             use tauri::Manager;
-            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed) {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                lifecycle::window_closing(window.app_handle());
+            }
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 lifecycle::context_lost(window.app_handle(), "window-close");
+                lifecycle::page_replaced();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -94,6 +127,11 @@ fn main() {
             get_fake_run,
             get_runtime_session,
             start_node_fake_run,
+            agent_bootstrap,
+            agent_start,
+            agent_cancel,
+            agent_snapshot,
+            agent_runtime_input,
         ])
         .build(tauri::generate_context!())
         .expect("AETHER application failed to start")

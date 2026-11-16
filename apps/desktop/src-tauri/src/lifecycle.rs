@@ -1,22 +1,29 @@
 //! Process/context identity is an IPC freshness boundary, not user authorization.
 use std::sync::{Mutex, OnceLock, atomic::{AtomicBool, Ordering}};
 use tauri::{Manager, ipc::InvokeBody};
-use crate::{approval, fake_run};
+use crate::{approval, fake_run, agent_runtime};
+
+pub fn fresh_id() -> String {
+    let mut bytes = [0u8; 16];
+    unsafe extern "C" { fn arc4random_buf(buffer: *mut std::ffi::c_void, size: usize); }
+    unsafe { arc4random_buf(bytes.as_mut_ptr().cast(), bytes.len()); }
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
 
 struct Gate { instance: String, epoch: u32, closing: bool }
 impl Gate {
     fn fresh() -> Self {
-        let mut bytes = [0u8; 16];
-        unsafe extern "C" { fn arc4random_buf(buffer: *mut std::ffi::c_void, size: usize); }
-        // macOS libSystem CSPRNG; no user path, environment or persistent identifier.
-        unsafe { arc4random_buf(bytes.as_mut_ptr().cast(), bytes.len()); }
-        Self { instance: bytes.iter().map(|b| format!("{b:02x}")).collect(), epoch: 0, closing: false }
+        Self { instance: fresh_id(), epoch: 0, closing: false }
     }
     fn check(&self, body: &InvokeBody) -> Result<InvokeBody, &'static str> {
+        if self.closing { return Err("Stale or closing lifecycle session"); }
+        self.check_envelope(body)
+    }
+    fn check_envelope(&self, body: &InvokeBody) -> Result<InvokeBody, &'static str> {
         let InvokeBody::Json(j) = body else { return Err("Expected lifecycle envelope"); };
         if j.to_string().len() > 768 || j.as_object().map(|o| o.len()) != Some(3)
             || j["instance"].as_str() != Some(self.instance.as_str())
-            || j["epoch"].as_u64() != Some(self.epoch as u64) || self.closing {
+            || j["epoch"].as_u64() != Some(self.epoch as u64) {
             return Err("Stale or closing lifecycle session");
         }
         let payload = j.get("payload").ok_or("Missing payload")?;
@@ -41,12 +48,35 @@ pub fn with_request<T>(body: &InvokeBody, action: impl FnOnce(&InvokeBody) -> Re
     // Gate -> ledger is the only lock order. Never hold either lock across waits.
     action(&payload)
 }
+pub fn with_agent_bootstrap<T>(action: impl FnOnce(&str, u32, bool) -> Result<T, String>) -> Result<T, String> {
+    let g = gate().lock().map_err(|_| "Session unavailable")?;
+    if g.closing { return Err("App closing".into()); }
+    action(&g.instance, g.epoch, true)
+}
+pub fn with_agent_request<T>(body: &InvokeBody, cleanup_only: bool,
+    action: impl FnOnce(&str, u32, bool, &InvokeBody) -> Result<T, String>) -> Result<T, String> {
+    let g = gate().lock().map_err(|_| "Session unavailable")?;
+    let payload = if cleanup_only { g.check_envelope(body)? } else { g.check(body)? };
+    action(&g.instance, g.epoch, !g.closing, &payload)
+}
 pub fn context_lost(app: &tauri::AppHandle, reason: &str) {
     if let Ok(mut g) = gate().lock() {
         match g.epoch.checked_add(1) { Some(n) => g.epoch = n, None => g.closing = true }
         fake_run::context_lost(g.epoch);
+        agent_runtime::context_lost();
         eprintln!("AETHER_LIFECYCLE instance={} pid={} event={reason} epoch={} time_ms={}",
             g.instance, std::process::id(), g.epoch, now());
+    }
+    approval::invalidate(app);
+}
+pub fn page_replaced() {
+    if let Ok(_g) = gate().lock() { agent_runtime::page_replaced(); }
+}
+pub fn window_closing(app: &tauri::AppHandle) {
+    if let Ok(mut g) = gate().lock() {
+        g.closing = true;
+        fake_run::shutdown();
+        agent_runtime::shutdown();
     }
     approval::invalidate(app);
 }
@@ -59,21 +89,24 @@ pub fn quit(app: &tauri::AppHandle, api: &tauri::ExitRequestApi) {
     if EXIT_READY.load(Ordering::SeqCst) { return; }
     api.prevent_exit();
     if EXIT_STARTED.swap(true, Ordering::SeqCst) { return; }
-    if let Ok(mut g) = gate().lock() { g.closing = true; fake_run::shutdown(); }
+    if let Ok(mut g) = gate().lock() { g.closing = true; fake_run::shutdown(); agent_runtime::shutdown(); }
     approval::invalidate(app);
     eprintln!("AETHER_QUIT instance={} event=stop-intake time_ms={}", instance(), now());
     let app = app.clone();
     std::thread::spawn(move || {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !fake_run::child_idle() && std::time::Instant::now() < deadline {
+        while !(fake_run::child_idle() && agent_runtime::idle()) && std::time::Instant::now() < deadline {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        if fake_run::child_idle() {
+        if fake_run::child_idle() && agent_runtime::idle() {
+            eprintln!("AETHER_AGENT_QUIT cleanup=confirmed");
             eprintln!("AETHER_QUIT instance={} child_idle=true pending=false time_ms={}", instance(), now());
             EXIT_READY.store(true, Ordering::SeqCst); app.exit(0);
         } else {
             // Do not claim success or force an unconfirmed child cleanup.
             eprintln!("AETHER_QUIT cleanup=FAILED host_retained=true");
+            // Keep intake closed, but allow a new explicit Quit after late cleanup.
+            EXIT_STARTED.store(false, Ordering::SeqCst);
         }
     });
 }
@@ -82,13 +115,15 @@ extern "C" fn native_terminate() {
     // AppKit's predefined Quit uses terminate:, bypassing ExitRequested.
     // willTerminate is synchronous on the main thread; bounded child wait holds no mutex.
     if let Some(app) = APP.get() {
-        if let Ok(mut g) = gate().lock() { g.closing = true; fake_run::shutdown(); }
+        if let Ok(mut g) = gate().lock() { g.closing = true; fake_run::shutdown(); agent_runtime::shutdown(); }
         approval::invalidate(app);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while !fake_run::child_idle() && std::time::Instant::now() < deadline {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         eprintln!("AETHER_NATIVE_QUIT instance={} child_idle={} pending=false time_ms={}", instance(), fake_run::child_idle(), now());
+        // Native terminate cannot await a main-thread WebKit ACK. Do not invent one.
+        eprintln!("AETHER_AGENT_NATIVE_QUIT cleanup_confirmed={}", agent_runtime::idle());
     }
 }
 pub fn install_menu(app: &tauri::AppHandle) -> tauri::Result<()> {

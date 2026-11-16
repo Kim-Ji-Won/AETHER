@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-agent-text",
+  "description": "로컬 main WKWebView의 bounded synthetic agent.text.v1 진단만 허용합니다. 외부 Provider, shell, network 권한을 부여하지 않습니다.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["allow-agent-bootstrap", "allow-agent-start", "allow-agent-cancel", "allow-agent-snapshot", "allow-agent-runtime-input"]
+}

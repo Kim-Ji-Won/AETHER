@@ -77,12 +77,16 @@ impl Host {
     }
     pub fn snapshot(&self, session: &UiSession) -> Result<Snapshot, ErrorCode> {
         self.check_session(session)?;
-        Ok(Snapshot {
+        Ok(self.inspect())
+    }
+    /// Trusted owner inspection, including closing; IPC callers still need the lifecycle gate.
+    pub fn inspect(&self) -> Snapshot {
+        Snapshot {
             namespace: NAMESPACE, source_kind: "synthetic", session: self.session(),
             session_generation: self.generation, snapshot_revision: self.revision,
             request_high_water: self.high_water, closing: self.closing,
             run: self.run.as_ref().map(|r| r.view.clone()),
-        })
+        }
     }
     /// Host inspection, including shutdown. Not exposed to an unvalidated UI.
     pub fn current(&self) -> Option<&RunSnapshot> { self.run.as_ref().map(|r| &r.view) }
