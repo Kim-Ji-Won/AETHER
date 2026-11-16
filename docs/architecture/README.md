@@ -22,3 +22,5 @@
 [Issue #46](https://github.com/Kim-Ji-Won/AETHER/issues/46)의 설계 리뷰 범위다. P0 Preflight 6/6 PASS와 E5c PARTIAL은 구분하며 Runtime A/B 선정·실제 Provider 호출·P2.1 구현을 승인하지 않는다.
 
 2026-11-15 사용자 후속 승인으로 P2.0 PR #47은 개발 기준선으로 병합됐다. [P2.1a Rust Host 구현/검증 기록](p2-1a-agent-run-contract.md)은 별도 Issue #48의 Draft 범위이며, 앞선 P2.0 설계 당시의 미실행 기록과 구분한다. Runtime A/B 선정·실제 Provider·P2.1b/c는 여전히 미착수다.
+
+이후 P2.1a PR #49 병합과 별도 사용자 승인에 따라 [P2.1b Foreground WKWebView 연결](p2-1b-foreground-runtime.md)을 Issue #50에서 진행한다. Runtime A는 이 synthetic 개발 경로에만 제한적으로 승인됐다. 앞 문단의 미착수는 당시 기록이며, P0 최종 Runtime 선정/ADR 승인과 실제 Provider/P2.1c 승인은 여전히 없다.

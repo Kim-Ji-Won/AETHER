@@ -26,6 +26,11 @@ fn main() {
                 "get_fake_run",
                 "get_runtime_session",
                 "start_node_fake_run",
+                "agent_bootstrap",
+                "agent_start",
+                "agent_cancel",
+                "agent_snapshot",
+                "agent_runtime_input",
             ]),
         ),
     ).expect("build Tauri app manifest");

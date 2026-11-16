@@ -1,2 +1,2 @@
-//! P2.1a host contracts. Not connected to the app's IPC, UI or Runtime A/B yet.
+//! Runtime-independent host contracts; the binary owns the lifecycle/IPC integration.
 pub mod agent_text;
