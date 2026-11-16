@@ -1,0 +1,15 @@
+/* Overlay above the unchanged Dock; no changes to the Particle viewport or layout rows. */
+.spatial-shell .command-dock-wrap { position: relative; }
+.synthetic-response {
+  position: absolute; bottom: calc(100% + 12px); left: 0; right: 0; z-index: 2;
+  max-height: min(190px, 33vh); overflow: auto; padding: 12px 16px; border-radius: 16px;
+  color: #d6dde7; background: rgba(15, 19, 29, .92); font-size: 12px; line-height: 1.5;
+}
+.synthetic-response header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 10px; letter-spacing: .06em; color: #aab7cc; }
+.synthetic-response p { margin: 5px 0; }
+.conversation-output { max-height: 76px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.conversation-output span { color: #aab7cc; }
+.conversation-actions { display: flex; gap: 8px; }
+.conversation-actions button { font: inherit; padding: 4px 10px; color: #d6dde7; border: 1px solid #4e596d; border-radius: 8px; background: transparent; }
+.conversation-actions button:disabled { opacity: .5; }
+.conversation-actions button:focus-visible, .conversation-output:focus-visible { outline: 2px solid #b7cfff; outline-offset: 2px; }

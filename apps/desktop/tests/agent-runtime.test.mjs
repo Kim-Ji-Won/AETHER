@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentRuntime, newer } from '../src/agent-runtime.ts';
 
-const view = (revision, state = 'Running') => [['host', 0, 1, 1, revision, 1, false],
+const view = (revision, state = 'Running') => [['host', 0, 1, 1, revision, 0, false],
   [1, 1, 1, 1, 'corr', state, revision, state === 'Running' ? 0 : 1, 'synthetic', '', 'Confirmed'], 'lease'];
 test('U01/U03: snapshots replace whole text and never regress revision or terminal', () => {
   const runtime = new AgentRuntime(async () => { throw new Error('No IPC expected'); });

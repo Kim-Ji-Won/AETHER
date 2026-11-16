@@ -24,3 +24,5 @@
 2026-11-15 사용자 후속 승인으로 P2.0 PR #47은 개발 기준선으로 병합됐다. [P2.1a Rust Host 구현/검증 기록](p2-1a-agent-run-contract.md)은 별도 Issue #48의 Draft 범위이며, 앞선 P2.0 설계 당시의 미실행 기록과 구분한다. Runtime A/B 선정·실제 Provider·P2.1b/c는 여전히 미착수다.
 
 이후 P2.1a PR #49 병합과 별도 사용자 승인에 따라 [P2.1b Foreground WKWebView 연결](p2-1b-foreground-runtime.md)을 Issue #50에서 진행한다. Runtime A는 이 synthetic 개발 경로에만 제한적으로 승인됐다. 앞 문단의 미착수는 당시 기록이며, P0 최종 Runtime 선정/ADR 승인과 실제 Provider/P2.1c 승인은 여전히 없다.
+
+P2.1b PR #51 병합 후 별도 사용자 승인으로 [P2.1c Command Dock Synthetic Conversation](p2-1c-command-dock-conversation.md)을 Issue #52에서 구현했다. 위 문단의 P2.1c 미승인은 당시 상태다. 현재 범위는 기존 Dock의 Synthetic text UI 연결과 최종 packaged 앱 검증이며, 실제 Provider/P2.2·전역 Runtime 선정·P0 완료·Ready/merge는 승인되지 않았다.

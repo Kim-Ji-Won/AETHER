@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Core, coreStates, type CoreState } from './Core';
 import { FakeRun } from './FakeRun';
 import { AgentDiagnostics } from './AgentDiagnostics';
+import { useAgentConversation } from './useAgentConversation';
 import { CommandDock, ContextPanel, Icon, Navigation, pages, StatusArea, type Page } from './ShellParts';
 import { MainParticleHost } from './particle-lab/MainParticleHost';
 import type { LabOptions, LabReport } from './particle-lab/renderer';
@@ -12,6 +13,7 @@ import type { Quality } from './scene/framing';
 import { useMotion } from './useMotion';
 
 export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: () => void; nativeChecks: ReactNode }) {
+  const conversation = useAgentConversation();
   const [quality, setQuality] = useState<Quality>('balanced');
   const [fault, setFault] = useState<LabOptions['fault']>('none');
   const sceneReport = useRef<LabReport | null>(null);
@@ -61,7 +63,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
           <ContextPanel open={context} close={closeContext} navigate={navigate} />
         </div>
         {particlePreview && <button className="preview-stop" onClick={() => setParticlePreview('')}>Preview 종료</button>}
-        <CommandDock draft={draft} setDraft={setDraft} />
+        <CommandDock draft={draft} setDraft={setDraft} conversation={conversation} />
       </section>}
       {page === 'memory' && <section className="page-scroll" aria-label="Memory Center">
         <label className="search-label">기억 검색<input disabled placeholder="검색 기능 준비 중" type="search" aria-describedby="memory-status" /></label>
@@ -76,7 +78,7 @@ export function Shell({ lit, onLight, nativeChecks }: { lit: boolean; onLight: (
       <section className="page-scroll" hidden={page !== 'command'} aria-label="Command Center">
         <div className="section-intro"><span className="badge">DEVELOPER DIAGNOSTICS</span><p>E4 Fake Runtime의 합성 진단입니다. 실제 AI나 컴퓨터 제어를 수행하지 않습니다.</p></div>
         <div className="panel"><div className="panel-heading"><h2>Runtime Console</h2><span className="badge">FAKE PROVIDER</span></div><FakeRun /></div>
-        <div className="panel"><div className="panel-heading"><h2>Agent Text Diagnostics</h2><span className="badge">SYNTHETIC ONLY · P2.1b</span></div><AgentDiagnostics /></div>
+        <div className="panel"><div className="panel-heading"><h2>Agent Text Diagnostics</h2><span className="badge">SYNTHETIC ONLY · P2.1b</span></div><AgentDiagnostics conversation={conversation} /></div>
         <div className="panel"><div className="panel-heading"><h2>Particle Diagnostics</h2><span className="badge">LOCAL VISUAL PREVIEW</span></div>
           <p>Main은 실제 AI 미연결 상태의 로컬 시각 효과입니다. 아래 Preview는 마이크·음성 합성 없이 16초 합성 패턴을 재생합니다.</p>
           <div className="scene-settings">
