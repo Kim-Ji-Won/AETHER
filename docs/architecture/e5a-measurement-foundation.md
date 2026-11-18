@@ -131,3 +131,7 @@ python3 scripts/benchmark.py --validate-results
 ```
 
 Rust 19 tests, Python Harness/parser 6 tests, Provider/Node 8 tests, TypeScript/Vite·arm64 packaging·governance·diff는 PASS입니다. 자세한 명령/exit·최종 CI는 Issue에 기록합니다. E4e 전체 lifecycle matrix를 재실행하지 않았고 관련 Rust/Node 회귀 및 smoke 정상 Quit만 확인했습니다. 실제 renderer crash, cold launch/paint, WebKit 귀속, Instruments recording, GPU/energy와 E5b/E5c 전체 반복은 NOT_RUN으로 남습니다.
+
+## E5b 후속
+
+[E5b 반복 지연 측정](e5b-repeated-latency.md)은 독립 Worktree와 별도 표본 집합을 사용합니다. 기존 E5a SMOKE_ONLY·TIMEOUT 기록은 유지하며 두 집합을 합치지 않습니다.
