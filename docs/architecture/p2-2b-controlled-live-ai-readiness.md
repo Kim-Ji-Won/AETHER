@@ -92,7 +92,8 @@ store=false는 Responses의 application state 저장을 제어한다. 기본 abu
 | Running cancel / deadline | CancelRequested와 terminal을 구분한다. 소유자에게 abort를 전달한다. 사용자 취소·run/idle timeout 사유를 구분하고 cleanup deadline까지 두 owner를 추적한다. |
 | Completion 경합 / reload / quit | Host가 기존 전이 규칙으로 순서를 직렬화한다. 유효한 완료와 두 cleanup 확인 후 성공할 수 있다. reload는 generation 교체·RuntimeLost·snapshot 재동기화, quit는 admission 잠금·중단·정리를 진행한다. 자동 재전송은 0회다. |
 | SSE duplicate / gap / identity 불일치 | Duplicate는 ingress에서 DuplicateEvent, 해당 run의 terminal은 Failed/ProtocolError 한 번이다. 이미 accepted된 event와 partial text는 불변이다. gap·잘못된 결속도 ProtocolError. |
-| Cleanup pending / 미확인 | 직전 terminal이 Failed여도 cleanup 확인 전 다음 run을 막는다. deadline 경과 시 기존 Host 규칙에 따라 CleanupUnconfirmed를 나타낸다. 늦은 owner ACK는 cleanup만 갱신하고 늦은 delta/completion은 거부한다. |
+| A · 이미 `Failed / ProtocolError` | Cleanup deadline이 만료되면 cleanup 상태만 `Pending → Unconfirmed`로 바뀐다. Terminal error는 `ProtocolError`, terminal count는 1로 유지하고 `RunFailed`를 재발행하지 않는다. 늦은 delta/completion은 거부한다. |
+| B · Terminal 확정 전 `CancelRequested` | Cleanup deadline이 만료되면 Host가 `RunFailed(CleanupUnconfirmed)`를 한 번 발행해 최초 terminal을 `Failed / CleanupUnconfirmed`로 확정한다(terminal count = 1). 두 경우 모두 adapter와 runtime의 유효한 cleanup ACK가 모두 도착할 때까지 새 run을 차단한다. 늦은 ACK는 해당 자원의 해제만 확인하며, 양쪽 확인 후 cleanup 상태가 `Confirmed`로 바뀌어도 기존 terminal과 error는 유지된다. |
 | HTTP / transport | 401 → AuthRequired, 403 → PermissionDenied, 5xx → ProviderUnavailable, offline/단절 → Offline. 429는 allowlisted code/type으로 RateLimit → ProviderRateLimit, quota/credit/spend → 각각 native 상세 원인 및 공통 QuotaExceeded, 알 수 없는 429 → ProviderError. |
 | 오류 노출 | 오류 body 최대 8,192 bytes, code/type만 분류하고 message/param/raw error를 폐기한다. 원격 incomplete·성공 전 EOF는 partial로 남긴다. 오류 안내 뒤 재시도에는 사용자 신규 요청·동의·예산이 필요하다. |
 
