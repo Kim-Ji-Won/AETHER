@@ -125,9 +125,15 @@ impl OfflineProvider {
     }
     fn reject(&mut self,e:ProviderError)->Result<(),ErrorCode>{
         self.last_error=Some(e);self.abort_requested=true;
-        let code=e.host_code();
-        self.host.fail(code,Phase::Stream); // only private, bound Native ingress reaches here
-        Err(code)
+        let ingress = e.host_code();
+        // DuplicateEvent identifies the rejected frame. Repeated SSE sequence numbers
+        // violate the bound stream's protocol and terminate the run.
+        let terminal = match e {
+            ProviderError::Duplicate => ErrorCode::ProtocolError,
+            _ => ingress,
+        };
+        self.host.fail(terminal, Phase::Stream);
+        Err(ingress)
     }
     pub fn end_of_stream(&mut self,id:&Identity,now:u64)->Result<(),ErrorCode>{
         self.bound(id)?;self.advance_to(now)?;

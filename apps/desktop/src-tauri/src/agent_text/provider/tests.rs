@@ -74,12 +74,43 @@ fn unterminated_complete_event_is_not_completion(){
     assert!(p.end_of_stream(&id,0).is_err());assert_terminal(&p,State::Failed);
 }
 #[test]
-fn duplicate_and_conflicting_sequence_fail_without_repeating_text(){
-    for conflict in [false,true]{
-        let(mut p,_,id)=running();let e=events("once");feed(&mut p,&id,&e[..5]).unwrap();
-        let mut dup=e[4].clone();if conflict{dup["delta"]=json!("conflict");}
-        assert_eq!(feed(&mut p,&id,&[dup]),Err(ErrorCode::DuplicateEvent));
-        assert_eq!(p.inspect().run.unwrap().text,"once");assert_terminal(&p,State::Failed);
+fn duplicate_and_conflicting_sequence_fail_without_repeating_text() {
+    for repeated_text in ["once", "conflict"] {
+        let (mut provider, session, id) = running();
+        let stream = events("once");
+        feed(&mut provider, &id, &stream[..5]).unwrap();
+        let accepted = provider.events().to_vec();
+        let mut duplicate = stream[4].clone();
+        duplicate["delta"] = json!(repeated_text);
+        assert_eq!(duplicate["sequence_number"], stream[4]["sequence_number"]);
+        assert_eq!(feed(&mut provider, &id, &[duplicate]), Err(ErrorCode::DuplicateEvent));
+        assert_eq!(provider.last_error(), Some(ProviderError::Duplicate));
+
+        let mut failed = provider.inspect().run.unwrap();
+        let error = failed.error.as_ref().unwrap();
+        assert_eq!(error.code, ErrorCode::ProtocolError);
+        assert!(error.partial_output);
+        assert_eq!(failed.text, "once");
+        assert_eq!(failed.cleanup, Cleanup::Pending);
+        assert_terminal(&provider, State::Failed); // also checks exactly one terminal
+        let (history, terminal) = provider.events().split_at(accepted.len());
+        assert_eq!(history, accepted);
+        assert!(matches!(terminal, [event] if event.payload == Payload::RunFailed(error.clone())));
+        let failed_history = provider.events().to_vec();
+
+        assert!(provider.abort_requested());
+        let next = Start { session, request_id: 2, text: "next".into() };
+        assert_eq!(provider.start(next.clone(), "fixture-model", 0), Err(ErrorCode::Busy));
+        provider.confirm_local_abort(&id, true).unwrap();
+        assert_eq!(provider.start(next.clone(), "fixture-model", 0), Err(ErrorCode::Busy));
+        provider.confirm_runtime_cleanup(&id, true).unwrap();
+        for late in [&stream[4], &stream[8]] {
+            assert_eq!(feed(&mut provider, &id, std::slice::from_ref(late)), Err(ErrorCode::AlreadyTerminal));
+        }
+        failed.cleanup = Cleanup::Confirmed;
+        assert_eq!(provider.inspect().run.unwrap(), failed);
+        assert_eq!(provider.events(), failed_history);
+        assert!(provider.start(next, "fixture-model", 0).is_ok());
     }
 }
 #[test]
