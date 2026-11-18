@@ -17,6 +17,7 @@ pub struct SyntheticAdapter {
 impl SyntheticAdapter {
     /// Single dispatch is consumed by Host, before any synthetic resource is constructed.
     pub fn dispatch(host: &mut Host, identity: &Identity) -> Result<Self, ErrorCode> {
+        if host.source_kind != "synthetic" { return Err(ErrorCode::InvalidIdentity); }
         host.dispatch(identity)?;
         Ok(Self { identity: identity.clone(), queue: VecDeque::new(), queued_bytes: 0,
             max_frames: host.policy().max_queue_frames, max_bytes: host.policy().max_queue_bytes,
