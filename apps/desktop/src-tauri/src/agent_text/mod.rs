@@ -1,8 +1,9 @@
-//! Runtime-independent, synthetic-only host ledger. Exclusive `&mut Host` is the
+//! Runtime-independent host ledger. Exclusive `&mut Host` is the
 //! linearization boundary. No I/O, timers, global state, credentials or IPC registration.
 mod types;
 pub mod wire;
 pub mod synthetic;
+pub mod provider;
 pub use types::*;
 
 struct Run {
@@ -20,6 +21,7 @@ struct Run {
 }
 
 pub struct Host {
+    source_kind: &'static str,
     instance: String,
     legacy_epoch: Option<u32>,
     ui_epoch: u32,
@@ -44,6 +46,7 @@ impl Host {
         if !valid_id(instance) { return Err(ErrorCode::InvalidIdentity); }
         policy.validate()?;
         Ok(Self {
+            source_kind: "synthetic",
             instance: instance.into(), legacy_epoch: None, ui_epoch: 0, generation: 1,
             next_run: 0, next_attempt: 0, high_water: 0, revision: 0, now: 0,
             closing: false, window_start: 0, window_count: 0,
@@ -82,7 +85,7 @@ impl Host {
     /// Trusted owner inspection, including closing; IPC callers still need the lifecycle gate.
     pub fn inspect(&self) -> Snapshot {
         Snapshot {
-            namespace: NAMESPACE, source_kind: "synthetic", session: self.session(),
+            namespace: NAMESPACE, source_kind: self.source_kind, session: self.session(),
             session_generation: self.generation, snapshot_revision: self.revision,
             request_high_water: self.high_water, closing: self.closing,
             run: self.run.as_ref().map(|r| r.view.clone()),
@@ -103,7 +106,7 @@ impl Host {
         // At most max_deltas + Created/Started/CancelRequested/terminal, validated policy.
         run.view.last_seq += 1;
         self.events.push(Event { namespace: NAMESPACE, identity: run.view.identity.clone(),
-            source_kind: "synthetic", seq: run.view.last_seq, payload });
+            source_kind: self.source_kind, seq: run.view.last_seq, payload });
         self.bump();
     }
     fn check_identity(&self, id: &Identity) -> Result<(), ErrorCode> {
@@ -115,6 +118,10 @@ impl Host {
     }
 
     pub fn start(&mut self, start: Start) -> Result<Identity, ErrorCode> {
+        self.start_source(start, "synthetic")
+    }
+    // Native child module only; no source field is accepted from Renderer IPC.
+    fn start_source(&mut self, start: Start, source: &'static str) -> Result<Identity, ErrorCode> {
         self.check_session(&start.session)?;
         self.capacity()?;
         if start.request_id == 0 { return Err(ErrorCode::InvalidIdentity); }
@@ -135,14 +142,16 @@ impl Host {
         let reset_window = self.now - self.window_start >= self.policy.rate_window_ms;
         let count = if reset_window { 0 } else { self.window_count };
         if count >= self.policy.max_starts_per_window { return Err(ErrorCode::RateLimited); }
-        if self.budget_left == 0 { return Err(ErrorCode::CostLimit); }
+        if source == "synthetic" && self.budget_left == 0 { return Err(ErrorCode::CostLimit); }
         let identity = Identity { host_instance_id: self.instance.clone(), run_id,
             request_id: start.request_id, attempt_id, session_generation: self.generation,
             correlation_id: format!("run-{run_id}-attempt-{attempt_id}") };
         // Commit admission only after all checks. Rejections do not consume IDs or quota.
+        self.source_kind = source;
         self.next_run = run_id; self.next_attempt = attempt_id; self.high_water = start.request_id;
         if reset_window { self.window_start = self.now; }
-        self.window_count = count + 1; self.budget_left -= 1;
+        self.window_count = count + 1;
+        if source == "synthetic" { self.budget_left -= 1; }
         self.events.clear();
         self.run = Some(Run {
             view: RunSnapshot { identity: identity.clone(), state: State::Queued, last_seq: 0,

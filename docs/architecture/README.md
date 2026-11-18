@@ -26,3 +26,5 @@
 이후 P2.1a PR #49 병합과 별도 사용자 승인에 따라 [P2.1b Foreground WKWebView 연결](p2-1b-foreground-runtime.md)을 Issue #50에서 진행한다. Runtime A는 이 synthetic 개발 경로에만 제한적으로 승인됐다. 앞 문단의 미착수는 당시 기록이며, P0 최종 Runtime 선정/ADR 승인과 실제 Provider/P2.1c 승인은 여전히 없다.
 
 P2.1b PR #51 병합 후 별도 사용자 승인으로 [P2.1c Command Dock Synthetic Conversation](p2-1c-command-dock-conversation.md)을 Issue #52에서 구현했다. 위 문단의 P2.1c 미승인은 당시 상태다. 현재 범위는 기존 Dock의 Synthetic text UI 연결과 최종 packaged 앱 검증이며, 실제 Provider/P2.2·전역 Runtime 선정·P0 완료·Ready/merge는 승인되지 않았다.
+
+P2.1c PR #53 병합 후 Issue #54에서 [P2.2a Native Responses Provider Foundation](p2-2a-native-responses-provider.md)을 구현했다. 이전 미착수 표기는 당시 기록이다. 이번 승인은 Rust 오프라인 Adapter/Mock SSE/정책 계약에 한정되며 실제 HTTP·Keychain·과금 호출, P2.2b와 이번 PR 병합은 승인되지 않았다. Runtime A의 제한적 Foreground 경로와 P0 ADR PROPOSED / E5b·E5c PARTIAL을 유지한다.
