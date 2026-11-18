@@ -12,6 +12,24 @@ fn ready() -> Runtime {
 fn start(r: &mut Runtime) {
     r.start(&json(r#"{"namespace":"agent.text.v1","host_instance_id":"host","ui_context_epoch":1,"request_id":1,"text":"synthetic"}"#), "lease".into()).unwrap();
 }
+#[test]
+fn dock_utf8_limit_is_enforced_by_host_without_ui_validation() {
+    for text in ["a".repeat(128), "한".repeat(42) + "ab", "😀".repeat(32)] {
+        let mut r = ready();
+        let body = format!(r#"{{"namespace":"agent.text.v1","host_instance_id":"host","ui_context_epoch":1,"request_id":1,"text":"{text}"}}"#);
+        r.start(&json(&body), "lease".into()).unwrap();
+        assert_eq!(r.host.current().unwrap().state, State::Queued);
+    }
+    for (text, error) in [("".into(), ErrorCode::InvalidInput), ("　 ".into(), ErrorCode::InvalidInput),
+        ("a".repeat(129), ErrorCode::InputLimit), ("한".repeat(43), ErrorCode::InputLimit),
+        ("😀".repeat(32) + "a", ErrorCode::InputLimit)] {
+        let mut r = ready();
+        let before = r.host.inspect();
+        let body = format!(r#"{{"namespace":"agent.text.v1","host_instance_id":"host","ui_context_epoch":1,"request_id":1,"text":"{text}"}}"#);
+        assert_eq!(r.start(&json(&body), "lease".into()), Err(error));
+        assert_eq!(r.host.inspect(), before);
+    }
+}
 fn control(r: &mut Runtime, action: &str) -> Result<(), ErrorCode> {
     r.runtime_input(&json(&format!(r#"{{"lease":"lease","action":"{action}","data":{{}}}}"#)))
 }

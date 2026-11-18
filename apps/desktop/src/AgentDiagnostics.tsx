@@ -1,23 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { AgentRuntime, type Mode, type View } from './agent-runtime';
+import { useState } from 'react';
+import { activeRun, type Mode } from './agent-runtime';
+import type { Conversation } from './useAgentConversation';
 
-export function AgentDiagnostics() {
-  const client = useRef<AgentRuntime | null>(null);
-  if (!client.current) client.current = new AgentRuntime((command, payload) => invoke<View>(command, payload));
-  const [view, setView] = useState<View | null>(null);
-  const [report, setReport] = useState('연결 중');
+export function AgentDiagnostics({ conversation }: { conversation: Conversation }) {
+  const { runtime, view, connection } = conversation;
+  const client = { current: runtime };
+  const [report, setReport] = useState('Synthetic 전용 · Main과 같은 Host/Controller');
   const [oldInstance, setOldInstance] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const runtime = client.current!;
-    let mounted = true;
-    runtime.onView = value => { if (mounted) setView(value); };
-    void runtime.bootstrap().then(() => { if (mounted) setReport('Synthetic 전용 · External Provider 미연결'); })
-      .catch(() => { if (mounted) setReport('Bootstrap 거부 · 재전송 없음'); });
-    const timer = setInterval(() => { void runtime.refresh().catch(() => {}); }, 100);
-    return () => { mounted = false; clearInterval(timer); };
-  }, []);
   async function act(action: () => Promise<unknown>, success: string) {
     setBusy(true);
     try { const result = await action(); setReport(typeof result === 'string' ? result : success); }
@@ -27,7 +17,7 @@ export function AgentDiagnostics() {
       setReport(safe.includes(String(error)) ? `Host 거부: ${String(error)}` : '요청 거부 · 마지막 Host 상태 확인');
     } finally { setBusy(false); }
   }
-  const active = !!view?.[1] && (!['Succeeded', 'Failed', 'Cancelled'].includes(view[1][5]) || !['Confirmed', 'NotRequired'].includes(view[1][10]));
+  const active = activeRun(view) || conversation.busy || !!view?.[0][6] || connection !== 'connected';
   const modes: [Mode, string][] = [['normal', 'Synthetic 실행'], ['queued', 'Queued 대기'], ['idle', 'Idle Timeout'],
     ['run-timeout', 'Run Timeout'], ['cleanup-timeout', 'Cleanup ACK 누락']];
   return <section aria-label="Agent Text Diagnostics">

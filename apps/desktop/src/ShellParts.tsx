@@ -1,4 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { MAX_INPUT_BYTES, inputProblem } from './agent-runtime';
+import { canSubmit, submitKey } from './conversation-ui';
+import { ConversationResponse } from './ConversationResponse';
+import type { Conversation } from './useAgentConversation';
+import './conversation.css';
 
 export const pages = [
   ['main', 'Main', 'Overview'], ['command', 'Command Center', 'Operations'],
@@ -50,8 +55,25 @@ export function ContextPanel({ open, close, navigate }: { open: boolean; close: 
     <button className="text-button" onClick={() => navigate('settings')}>연결 설정 보기 ↗</button>
   </aside>;
 }
-export function CommandDock({ draft, setDraft }: { draft: string; setDraft: (text: string) => void }) {
+export function CommandDock({ draft, setDraft, conversation }: { draft: string; setDraft: Dispatch<SetStateAction<string>>; conversation: Conversation }) {
   const input = useRef<HTMLTextAreaElement>(null);
+  const submitting = useRef(false);
+  const composing = useRef(false);
+  const compositionEnded = useRef(-Infinity);
+  const [isComposing, setIsComposing] = useState(false);
+  const [notice, setNotice] = useState('');
+  const bytes = new TextEncoder().encode(draft).length;
+  const allowed = canSubmit(conversation.view, conversation.connection, conversation.busy, draft) && !isComposing;
+  async function submit() {
+    if (!allowed || submitting.current || composing.current) return;
+    submitting.current = true; setNotice(''); input.current?.focus();
+    const text = draft;
+    try {
+      await conversation.runtime.start('normal', text);
+      setDraft(current => current === text ? '' : current);
+    } catch { setNotice('요청이 거부되었거나 전송 결과를 확인하지 못했습니다. Host 상태를 확인하세요. 자동 재전송하지 않습니다.'); }
+    finally { submitting.current = false; }
+  }
   useLayoutEffect(() => {
     const field = input.current;
     if (!field) return;
@@ -70,12 +92,20 @@ export function CommandDock({ draft, setDraft }: { draft: string; setDraft: (tex
     return () => observer.disconnect();
   }, [draft]);
   return <div className="command-dock-wrap">
+    <ConversationResponse conversation={conversation} />
     <div className="command-dock glass" role="group" aria-label="Command Dock">
       <button disabled aria-label="첨부 준비 중" title="첨부 준비 중"><Icon name="plus" /></button>
-      <label className="draft-field"><span className="sr-only">메시지 초안</span><textarea ref={input} rows={1} maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} placeholder="메시지 초안 입력" aria-describedby="draft-notice" /></label>
+      <label className="draft-field"><span className="sr-only">Synthetic 테스트 메시지</span><textarea ref={input} rows={1} maxLength={MAX_INPUT_BYTES} value={draft}
+        onChange={e => { setDraft(e.target.value); setNotice(''); }} placeholder="로컬 테스트 메시지 입력" aria-describedby="draft-notice"
+        aria-invalid={bytes > MAX_INPUT_BYTES || undefined}
+        onCompositionStart={() => { composing.current = true; setIsComposing(true); }}
+        onCompositionEnd={() => { composing.current = false; compositionEnded.current = performance.now(); setIsComposing(false); }}
+        onKeyDown={e => {
+          if (submitKey(e.nativeEvent, composing.current, performance.now() - compositionEnded.current)) { e.preventDefault(); void submit(); }
+        }} /></label>
       <button disabled aria-label="음성 입력 준비 중" title="음성 입력 준비 중"><Icon name="mic" /></button>
-      <button className="send-button" disabled aria-label="전송 준비 중 · AI 미연결" title="AI Provider 연결 준비 중"><Icon name="send" /></button>
+      <button className="send-button" disabled={!allowed} onClick={() => void submit()} aria-label="Synthetic 메시지 전송" title="로컬 Synthetic 실행 · AI Provider 미연결"><Icon name="send" /></button>
     </div>
-    <p id="draft-notice" className="dock-notice">로컬 초안 · 전송 및 음성 기능 준비 중 · 앱 종료 시 사라집니다.</p>
+    <p id="draft-notice" className="dock-notice">SYNTHETIC / LOCAL TEST · Provider 미연결 · {bytes}/{MAX_INPUT_BYTES} UTF-8 bytes · {notice || (draft && inputProblem(draft)) || 'Shift+Enter 줄바꿈 · 메모리 전용'}</p>
   </div>;
 }
