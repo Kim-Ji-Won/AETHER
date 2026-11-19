@@ -1,8 +1,9 @@
-//! Offline Responses foundation. No HTTP client, credentials, IPC, or live dispatch.
+//! Native Responses foundation. Production network dispatch and credentials are disabled.
 pub mod credential;
 pub mod consent;
 pub mod error;
 pub mod policy;
+mod transport;
 mod sse;
 mod mapper;
 
@@ -15,12 +16,12 @@ use sse::Decoder;
 /// No permission flag can enable production dispatch in this phase.
 pub fn live_dispatch() -> Result<(), ErrorCode> { Err(ErrorCode::ProviderDisabled) }
 
-struct Stream { decoder: Decoder, mapper: Mapper, canonical_seq: u32 }
+struct Stream { decoder: Decoder, mapper: Mapper, canonical_seq: u32, events: usize }
 
-/// Native-owned offline driver, not registered with Tauri or used by the UI.
-/// Exclusive &mut is the same linearization boundary as Host. Inputs are virtual
-/// transport bytes, never Renderer Frames/JSON credentials. A future live transport
-/// must own its socket/task and bind it to this identity after Lifecycle validation.
+/// Native provider driver for offline integration, outside the app's Tauri state.
+/// The existing Host serializes admission and canonical events. An attached HTTP
+/// reader exclusively owns ingress until detach. The WKWebView keeps its own
+/// existing synthetic session and cannot construct or dispatch this driver.
 pub struct OfflineProvider<R = credential::DisabledCredentials> {
     credentials: R,
     consent: consent::ConsentState,
@@ -28,6 +29,8 @@ pub struct OfflineProvider<R = credential::DisabledCredentials> {
     ledger: Ledger,
     identity: Option<Identity>,
     stream: Option<Stream>,
+    transport: Option<transport::Transfer>,
+    consented_attempt: Option<Identity>,
     request: Option<RequestPreview>,
     abort_requested: bool,
     local_closed: bool,
@@ -50,7 +53,8 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
     fn with_resolver(instance: &str, host_policy: Policy, provider_policy: OfflinePolicy, credentials: R) -> Result<Self, ErrorCode> {
         Ok(Self { credentials, consent: consent::ConsentState::new(),
             host:Host::new(instance,host_policy)?, ledger:Ledger::new(provider_policy)?,
-            identity:None,stream:None,request:None,abort_requested:false,local_closed:true,last_error:None })
+            identity:None,stream:None,transport:None,consented_attempt:None,request:None,
+            abort_requested:false,local_closed:true,last_error:None })
     }
     /// Same trusted bootstrap precondition as Host::attach, NOT an IPC endpoint.
     pub fn attach(&mut self, instance:&str, legacy_epoch:u32, live:bool)->Result<UiSession,ErrorCode>{
@@ -76,6 +80,7 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
     pub fn preview(&self)->Option<&RequestPreview>{self.request.as_ref()}
     fn commit_start(&mut self, start:Start, request:RequestPreview, now:u64)->Result<Identity,ErrorCode>{
         let id=self.host.start_source(start,"provider")?;
+        self.consented_attempt=None;
         self.ledger.reserve(now,&request);
         self.identity=Some(id.clone());self.stream=None;self.request=Some(request);
         self.abort_requested=false;self.local_closed=true;self.last_error=None;
@@ -90,7 +95,7 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         self.host.dispatch(id)?;
         self.stream=Some(Stream {decoder:Decoder::new(self.ledger.policy.max_sse_frame_bytes,self.ledger.policy.max_stream_bytes),
             mapper:Mapper::new(self.host.policy.max_output_bytes,self.host.policy.max_delta_bytes,
-                self.request.as_ref().ok_or(ErrorCode::PolicyUnconfigured)?.model_id()),canonical_seq:0});
+                self.request.as_ref().ok_or(ErrorCode::PolicyUnconfigured)?.model_id()),canonical_seq:0,events:0});
         self.local_closed=false;Ok(())
     }
     pub fn advance_to(&mut self,now:u64)->Result<(),ErrorCode>{
@@ -106,6 +111,10 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         Ok(())
     }
     pub fn feed(&mut self,id:&Identity,bytes:&[u8],now:u64)->Result<(),ErrorCode>{
+        if self.transport.is_some() { return Err(ErrorCode::InvalidIdentity); }
+        self.feed_owned(id,bytes,now)
+    }
+    fn feed_owned(&mut self,id:&Identity,bytes:&[u8],now:u64)->Result<(),ErrorCode>{
         self.ingest_ready(id,now)?;
         // At most one framed message/JSON is allocated at a time, irrespective of chunk size.
         for byte in bytes {
@@ -113,6 +122,9 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
                 Ok(m)=>m,Err(e)=>return self.reject(e),
             };
             if let Some(message)=message {
+                let stream=self.stream.as_mut().unwrap();
+                stream.events+=1;
+                if stream.events>transport::MAX_EVENTS { return self.reject(ProviderError::BufferLimit); }
                 let mapped=match self.stream.as_mut().unwrap().mapper.accept(message){
                     Ok(m)=>m,Err(e)=>return self.reject(e),
                 };
@@ -122,10 +134,11 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
                     Mapped::Completed(usage)=>{
                         if let Err(e)=self.ledger.record(usage){return self.reject(e);}
                         self.canonical(id,AdapterPayload::Completed)?;
-                        // All resources here are memory-only. Completion is still gated on
-                        // Runtime release. A live reader/task close is P2.2b work.
-                        self.stream=None;self.request=None;self.local_closed=true;
-                        self.host.release(id,CleanupPart::Adapter,true)?;
+                        self.stream=None;self.request=None;
+                        if self.transport.is_none() {
+                            self.local_closed=true;
+                            self.host.release(id,CleanupPart::Adapter,true)?;
+                        }
                         // Any bytes following terminal belong to a closed stream. Ignore them;
                         // they cannot create canonical events or mutate a terminal.
                         return Ok(());
@@ -161,6 +174,10 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         Err(ingress)
     }
     pub fn end_of_stream(&mut self,id:&Identity,now:u64)->Result<(),ErrorCode>{
+        if self.transport.is_some() { return Err(ErrorCode::InvalidIdentity); }
+        self.end_owned_stream(id,now)
+    }
+    fn end_owned_stream(&mut self,id:&Identity,now:u64)->Result<(),ErrorCode>{
         self.bound(id)?;self.advance_to(now)?;
         if self.local_closed {return Ok(());}
         if self.host.current().is_some_and(|r|r.state!=State::Running){return Err(ErrorCode::AlreadyTerminal);}
@@ -170,6 +187,7 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         self.reject(e)
     }
     pub fn transport_error(&mut self,id:&Identity,e:ProviderError,now:u64)->Result<(),ErrorCode>{
+        if self.transport.is_some() { return Err(ErrorCode::InvalidIdentity); }
         self.ingest_ready(id,now)?;self.reject(e)
     }
     pub fn cancel(&mut self,session:&UiSession,id:&Identity,now:u64)->Result<(),ErrorCode>{
@@ -178,10 +196,11 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         if !self.local_closed {self.abort_requested=true;}else{self.request=None;}
         Ok(())
     }
-    /// Explicit barrier for the offline transport's abort confirmation. `false` cannot
-    /// release resources. Future native transport must derive confirmation from ownership.
+    /// Explicit abort barrier for virtual ingress. An attached native reader
+    /// derives its ACK exclusively from successful handle removal and destruction.
     pub fn confirm_local_abort(&mut self,id:&Identity,confirmed:bool)->Result<(),ErrorCode>{
         self.bound(id)?;
+        if self.transport.is_some() { return Err(ErrorCode::Busy); }
         if !self.abort_requested {return Err(ErrorCode::InvalidInput);}
         if confirmed {
             self.stream=None;self.request=None;self.local_closed=true;
@@ -212,13 +231,15 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         if !self.local_closed{self.abort_requested=true;}else{self.request=None;}
         Ok(())
     }
-    /// Owner-only loss recovery; old Runtime ACKs stay invalid. Offline buffers can
-    /// actually be dropped here; live task/socket release needs separate implementation.
+    /// Called by the owner after losing the old runtime context. Detach any native
+    /// reader before handing its release and the owner's context confirmation to Host.
     pub fn confirm_lost_owned_cleanup(&mut self)->Result<(),ErrorCode>{
         let id=self.identity.as_ref().ok_or(ErrorCode::InvalidIdentity)?;
         if self.host.inspect().session_generation==id.session_generation{return Err(ErrorCode::InvalidInput);}
+        let run_id=id.run_id;
+        self.close_transport()?;
         self.stream=None;self.request=None;self.local_closed=true;
-        self.host.confirm_owned_cleanup(id.run_id)?;
+        self.host.confirm_owned_cleanup(run_id)?;
         self.finish_pending_revocation();
         Ok(())
     }

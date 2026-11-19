@@ -159,9 +159,11 @@ impl<R: CredentialResolver> OfflineProvider<R> {
             CredentialState::AccessDenied => return Err(CredentialError::AccessDenied.into()),
             CredentialState::Unavailable => return Err(CredentialError::Unavailable.into()),
         }
+        let body = request.body();
+        super::transport::encode_request(&body)?;
         let binding = Binding {
             identity, session: start.session.clone(), endpoint: request.endpoint(),
-            body: request.body(), credential_generation: self.consent.credential_generation,
+            body, credential_generation: self.consent.credential_generation,
             policy_version: self.consent.policy_version,
         };
         Ok((request, binding))
@@ -170,7 +172,7 @@ impl<R: CredentialResolver> OfflineProvider<R> {
     // Models the native approval action. No production constructor, IPC flag or model output
     // can place a binding in the approved slot.
     #[cfg(test)]
-    fn approve_fixture(&mut self, start: &Start, model: &str, now: u64) -> Result<(), AdmissionError> {
+    pub(super) fn approve_fixture(&mut self, start: &Start, model: &str, now: u64) -> Result<(), AdmissionError> {
         self.consent.withdraw();
         let (_, binding) = self.prepare_binding(start, model, now)?;
         self.consent.approved = Some(binding);
@@ -189,7 +191,9 @@ impl<R: CredentialResolver> OfflineProvider<R> {
         // Only the matching one-time approval may resolve. The lease ends here;
         // this offline operation sends nothing and cannot retain a secret handle.
         drop(self.credentials.resolve()?);
-        Ok(self.commit_start(start, request, now)?)
+        let id = self.commit_start(start, request, now)?;
+        self.consented_attempt = Some(id.clone());
+        Ok(id)
     }
 }
 
