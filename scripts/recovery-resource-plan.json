@@ -1,0 +1,24 @@
+{
+  "classification": "MINIMUM_SCOPE",
+  "variants": ["webview-a", "node-b"],
+  "repetitions": 3,
+  "order": [["webview-a", "node-b"], ["node-b", "webview-a"], ["webview-a", "node-b"]],
+  "sample_interval_seconds": 1,
+  "phases_per_session": [
+    {"name": "idle", "seconds": 30},
+    {"name": "foreground_long60", "seconds": 65},
+    {"name": "recovery_after_normal", "seconds": 15},
+    {"name": "hidden_long60", "seconds": 65},
+    {"name": "recovery_after_hidden", "seconds": 15},
+    {"name": "pause25_cancel", "maximum_seconds": 30},
+    {"name": "recovery_after_cancel", "seconds": 15},
+    {"name": "pause25_reload", "maximum_seconds": 30},
+    {"name": "recovery_after_reload", "seconds": 15},
+    {"name": "normal_quit_and_reap", "maximum_seconds": 10}
+  ],
+  "sampled": ["identity_verified_host_cpu_time", "host_rss", "identity_verified_node_cpu_time", "node_rss"],
+  "stop": "Any environment violation, identity loss, timeout or lifecycle mismatch stops this fixed session schedule; no replacement",
+  "gate": "E5b completed without stop latch, own processes gone, fresh single 60+60 baseline with same drift policy",
+  "size_policy": "Same combined app; report total bytes and bundled Node contribution, not independently built A-only versus B-only sizes",
+  "limitations": ["Not 15 minutes per condition times 3", "WebKit attribution UNAVAILABLE", "GPU energy NOT_RUN", "Battery runtime NOT_RUN", "Actual renderer crash NOT_RUN", "No long-term leak proof"]
+}
