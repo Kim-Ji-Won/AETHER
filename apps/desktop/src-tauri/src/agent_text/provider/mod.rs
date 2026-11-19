@@ -1,5 +1,6 @@
 //! Offline Responses foundation. No HTTP client, credentials, IPC, or live dispatch.
 pub mod credential;
+pub mod consent;
 pub mod error;
 pub mod policy;
 mod sse;
@@ -20,7 +21,9 @@ struct Stream { decoder: Decoder, mapper: Mapper, canonical_seq: u32 }
 /// Exclusive &mut is the same linearization boundary as Host. Inputs are virtual
 /// transport bytes, never Renderer Frames/JSON credentials. A future live transport
 /// must own its socket/task and bind it to this identity after Lifecycle validation.
-pub struct OfflineProvider {
+pub struct OfflineProvider<R = credential::DisabledCredentials> {
+    credentials: R,
+    consent: consent::ConsentState,
     host: Host,
     ledger: Ledger,
     identity: Option<Identity>,
@@ -32,12 +35,36 @@ pub struct OfflineProvider {
 }
 impl OfflineProvider {
     pub fn new(instance: &str, host_policy: Policy, provider_policy: OfflinePolicy) -> Result<Self, ErrorCode> {
-        Ok(Self { host:Host::new(instance,host_policy)?, ledger:Ledger::new(provider_policy)?,
+        Self::with_resolver(instance, host_policy, provider_policy, credential::DisabledCredentials)
+    }
+    /// Legacy virtual SSE fixture entry, available only with disabled credentials.
+    pub fn start(&mut self, start:Start, host_selected_model:&str, now:u64)->Result<Identity,ErrorCode>{
+        self.consent.withdraw();
+        self.revocation().check_admission().map_err(|_| ErrorCode::ProviderDisabled)?;
+        self.advance_to(now)?;
+        let request=self.ledger.prepare(now,host_selected_model,&start.text)?;
+        self.commit_start(start, request, now)
+    }
+}
+impl<R: credential::CredentialResolver> OfflineProvider<R> {
+    fn with_resolver(instance: &str, host_policy: Policy, provider_policy: OfflinePolicy, credentials: R) -> Result<Self, ErrorCode> {
+        Ok(Self { credentials, consent: consent::ConsentState::new(),
+            host:Host::new(instance,host_policy)?, ledger:Ledger::new(provider_policy)?,
             identity:None,stream:None,request:None,abort_requested:false,local_closed:true,last_error:None })
     }
     /// Same trusted bootstrap precondition as Host::attach, NOT an IPC endpoint.
     pub fn attach(&mut self, instance:&str, legacy_epoch:u32, live:bool)->Result<UiSession,ErrorCode>{
-        self.host.attach(instance,legacy_epoch,live)
+        let previous = self.host.legacy_epoch;
+        let session = self.host.attach(instance,legacy_epoch,live)?;
+        if previous != Some(legacy_epoch) {
+            self.consent.withdraw();
+            if self.host.current().is_some_and(|run| !run.state.terminal()
+                && run.identity.session_generation == self.host.generation) {
+                self.runtime_lost(self.host.now_ms())?;
+            }
+            self.consent.awaiting_new_context = false;
+        }
+        Ok(session)
     }
     pub fn snapshot(&self, session:&UiSession)->Result<Snapshot,ErrorCode>{self.host.snapshot(session)}
     pub fn inspect(&self)->Snapshot{self.host.inspect()}
@@ -47,9 +74,7 @@ impl OfflineProvider {
     pub fn abort_requested(&self)->bool{self.abort_requested}
     pub fn local_transport_closed(&self)->bool{self.local_closed}
     pub fn preview(&self)->Option<&RequestPreview>{self.request.as_ref()}
-    pub fn start(&mut self, start:Start, host_selected_model:&str, now:u64)->Result<Identity,ErrorCode>{
-        self.advance_to(now)?;
-        let request=self.ledger.prepare(now,host_selected_model,&start.text)?;
+    fn commit_start(&mut self, start:Start, request:RequestPreview, now:u64)->Result<Identity,ErrorCode>{
         let id=self.host.start_source(start,"provider")?;
         self.ledger.reserve(now,&request);
         self.identity=Some(id.clone());self.stream=None;self.request=Some(request);
@@ -149,6 +174,7 @@ impl OfflineProvider {
     }
     pub fn cancel(&mut self,session:&UiSession,id:&Identity,now:u64)->Result<(),ErrorCode>{
         self.bound(id)?;self.advance_to(now)?;self.host.cancel(session,id)?;
+        self.consent.withdraw();
         if !self.local_closed {self.abort_requested=true;}else{self.request=None;}
         Ok(())
     }
@@ -166,14 +192,22 @@ impl OfflineProvider {
     pub fn confirm_runtime_cleanup(&mut self,id:&Identity,confirmed:bool)->Result<(),ErrorCode>{
         self.bound(id)?;
         if !self.local_closed {return Err(ErrorCode::InvalidInput);}
-        self.host.release(id,CleanupPart::Runtime,confirmed)
+        self.host.release(id,CleanupPart::Runtime,confirmed)?;
+        self.finish_pending_revocation();
+        Ok(())
     }
     pub fn shutdown(&mut self,now:u64)->Result<(),ErrorCode>{
+        self.consent.withdraw();
+        if self.revocation() != consent::Revocation::AwaitingCleanup {
+            self.credentials.shutdown();
+        }
         self.advance_to(now)?;self.host.shutdown()?;
         if !self.local_closed{self.abort_requested=true;}else{self.request=None;}
         Ok(())
     }
     pub fn runtime_lost(&mut self,now:u64)->Result<(),ErrorCode>{
+        self.consent.withdraw();
+        self.consent.awaiting_new_context = true;
         self.advance_to(now)?;self.host.runtime_lost()?;
         if !self.local_closed{self.abort_requested=true;}else{self.request=None;}
         Ok(())
@@ -184,7 +218,9 @@ impl OfflineProvider {
         let id=self.identity.as_ref().ok_or(ErrorCode::InvalidIdentity)?;
         if self.host.inspect().session_generation==id.session_generation{return Err(ErrorCode::InvalidInput);}
         self.stream=None;self.request=None;self.local_closed=true;
-        self.host.confirm_owned_cleanup(id.run_id)
+        self.host.confirm_owned_cleanup(id.run_id)?;
+        self.finish_pending_revocation();
+        Ok(())
     }
 }
 

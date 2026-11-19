@@ -121,7 +121,7 @@ impl Host {
         self.start_source(start, "synthetic")
     }
     // Native child module only; no source field is accepted from Renderer IPC.
-    fn start_source(&mut self, start: Start, source: &'static str) -> Result<Identity, ErrorCode> {
+    fn check_start(&self, start: &Start, source: &'static str) -> Result<(Identity, bool), ErrorCode> {
         self.check_session(&start.session)?;
         self.capacity()?;
         if start.request_id == 0 { return Err(ErrorCode::InvalidIdentity); }
@@ -146,11 +146,14 @@ impl Host {
         let identity = Identity { host_instance_id: self.instance.clone(), run_id,
             request_id: start.request_id, attempt_id, session_generation: self.generation,
             correlation_id: format!("run-{run_id}-attempt-{attempt_id}") };
-        // Commit admission only after all checks. Rejections do not consume IDs or quota.
+        Ok((identity, reset_window))
+    }
+    fn start_source(&mut self, start: Start, source: &'static str) -> Result<Identity, ErrorCode> {
+        let (identity, reset_window) = self.check_start(&start, source)?;
         self.source_kind = source;
-        self.next_run = run_id; self.next_attempt = attempt_id; self.high_water = start.request_id;
-        if reset_window { self.window_start = self.now; }
-        self.window_count = count + 1;
+        self.next_run = identity.run_id; self.next_attempt = identity.attempt_id; self.high_water = start.request_id;
+        if reset_window { self.window_start = self.now; self.window_count = 0; }
+        self.window_count += 1;
         if source == "synthetic" { self.budget_left -= 1; }
         self.events.clear();
         self.run = Some(Run {
