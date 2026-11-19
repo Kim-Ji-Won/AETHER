@@ -40,6 +40,7 @@ impl OfflineProvider {
     /// Legacy virtual SSE fixture entry, available only with disabled credentials.
     pub fn start(&mut self, start:Start, host_selected_model:&str, now:u64)->Result<Identity,ErrorCode>{
         self.consent.withdraw();
+        self.revocation().check_admission().map_err(|_| ErrorCode::ProviderDisabled)?;
         self.advance_to(now)?;
         let request=self.ledger.prepare(now,host_selected_model,&start.text)?;
         self.commit_start(start, request, now)
@@ -191,11 +192,15 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
     pub fn confirm_runtime_cleanup(&mut self,id:&Identity,confirmed:bool)->Result<(),ErrorCode>{
         self.bound(id)?;
         if !self.local_closed {return Err(ErrorCode::InvalidInput);}
-        self.host.release(id,CleanupPart::Runtime,confirmed)
+        self.host.release(id,CleanupPart::Runtime,confirmed)?;
+        self.finish_pending_revocation();
+        Ok(())
     }
     pub fn shutdown(&mut self,now:u64)->Result<(),ErrorCode>{
         self.consent.withdraw();
-        self.credentials.shutdown();
+        if self.revocation() != consent::Revocation::AwaitingCleanup {
+            self.credentials.shutdown();
+        }
         self.advance_to(now)?;self.host.shutdown()?;
         if !self.local_closed{self.abort_requested=true;}else{self.request=None;}
         Ok(())
@@ -213,7 +218,9 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         let id=self.identity.as_ref().ok_or(ErrorCode::InvalidIdentity)?;
         if self.host.inspect().session_generation==id.session_generation{return Err(ErrorCode::InvalidInput);}
         self.stream=None;self.request=None;self.local_closed=true;
-        self.host.confirm_owned_cleanup(id.run_id)
+        self.host.confirm_owned_cleanup(id.run_id)?;
+        self.finish_pending_revocation();
+        Ok(())
     }
 }
 

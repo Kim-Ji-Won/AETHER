@@ -18,6 +18,26 @@ impl From<CredentialError> for AdmissionError {
     fn from(error: CredentialError) -> Self { Self::Credential(error) }
 }
 
+/// Native revocation progress, independent of resolver availability and Run terminal state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Revocation {
+    NotRequested,
+    AwaitingCleanup,
+    Confirmed,
+    Failed(CredentialError),
+}
+
+impl Revocation {
+    pub(super) fn check_admission(self) -> Result<(), AdmissionError> {
+        match self {
+            Self::NotRequested => Ok(()),
+            Self::AwaitingCleanup => Err(ErrorCode::Busy.into()),
+            Self::Confirmed => Err(CredentialError::Missing.into()),
+            Self::Failed(error) => Err(error.into()),
+        }
+    }
+}
+
 // Exact, bounded, memory-only native request. No Debug, Clone, Serde or wire conversion.
 #[derive(PartialEq)]
 struct Binding {
@@ -33,14 +53,14 @@ pub(super) struct ConsentState {
     approved: Option<Binding>,
     credential_generation: u64,
     policy_version: u64,
-    revocation_error: Option<CredentialError>,
+    revocation: Revocation,
     pub(super) awaiting_new_context: bool,
 }
 
 impl ConsentState {
     pub(super) fn new() -> Self {
         Self { approved: None, credential_generation: 0, policy_version: 1,
-            revocation_error: None, awaiting_new_context: false }
+            revocation: Revocation::NotRequested, awaiting_new_context: false }
     }
     pub(super) fn withdraw(&mut self) { self.approved = None; }
 }
@@ -64,47 +84,74 @@ impl<R: CredentialResolver> OfflineProvider<R> {
         Ok(())
     }
 
+    fn run_needs_cleanup(&self) -> bool {
+        self.host.current().is_some_and(|run| !run.state.terminal()
+            || matches!(run.cleanup, Cleanup::Pending | Cleanup::Unconfirmed))
+    }
+
     fn credential_edit(&mut self) -> Result<u64, AdmissionError> {
         self.consent.withdraw();
         if self.host.closing { return Err(CredentialError::Disabled.into()); }
-        if self.host.current().is_some_and(|run| !run.state.terminal()
-            || matches!(run.cleanup, Cleanup::Pending | Cleanup::Unconfirmed)) {
+        if self.run_needs_cleanup() {
             return Err(ErrorCode::Busy.into());
         }
         Ok(self.consent.credential_generation.checked_add(1).ok_or(ErrorCode::CounterExhausted)?)
     }
 
     pub fn register_credential(&mut self, secret: R::Secret) -> Result<(), AdmissionError> {
+        // Only confirmed removal permits replacement by explicit registration.
+        if self.revocation() != Revocation::Confirmed { self.revocation().check_admission()?; }
         let generation = self.credential_edit()?;
         self.credentials.register(secret)?;
         self.consent.credential_generation = generation;
-        self.consent.revocation_error = None;
+        self.consent.revocation = Revocation::NotRequested;
         Ok(())
     }
 
     pub fn rotate_credential(&mut self, secret: R::Secret) -> Result<(), AdmissionError> {
         let generation = self.credential_edit()?;
-        if let Some(error) = self.consent.revocation_error { return Err(error.into()); }
+        self.revocation().check_admission()?;
         self.credentials.replace(secret)?;
         self.consent.credential_generation = generation;
         Ok(())
     }
 
+    pub fn revocation(&self) -> Revocation { self.consent.revocation }
+
+    /// Ok acknowledges the request. Inspect revocation() for the deletion outcome,
+    /// including failures delivered after the final cleanup ACK.
     pub fn revoke_credential(&mut self) -> Result<(), AdmissionError> {
-        let revoked = self.credentials.revoke();
-        self.consent.revocation_error = Some(revoked.err().unwrap_or(CredentialError::Missing));
+        match self.revocation() {
+            Revocation::Failed(error) => return Err(error.into()),
+            Revocation::Confirmed => return Ok(()),
+            Revocation::NotRequested | Revocation::AwaitingCleanup => {}
+        }
+        self.consent.revocation = Revocation::AwaitingCleanup;
         self.withdraw_consent()?;
-        Ok(revoked?)
+        self.finish_pending_revocation();
+        match self.revocation() {
+            Revocation::Failed(error) => Err(error.into()),
+            _ => Ok(()),
+        }
+    }
+
+    pub(super) fn finish_pending_revocation(&mut self) {
+        if self.revocation() != Revocation::AwaitingCleanup || self.run_needs_cleanup() { return; }
+        self.consent.revocation = match self.credentials.revoke() {
+            Ok(()) => Revocation::Confirmed,
+            Err(error) => Revocation::Failed(error),
+        };
+        if self.host.closing { self.credentials.shutdown(); }
     }
 
     fn prepare_binding(&mut self, start: &Start, model: &str, now: u64)
         -> Result<(RequestPreview, Binding), AdmissionError>
     {
         self.advance_to(now)?;
+        self.revocation().check_admission()?;
         if self.consent.awaiting_new_context { return Err(ErrorCode::StaleSession.into()); }
         let (identity, _) = self.host.check_start(start, "provider")?;
         let request = self.ledger.prepare(now, model, &start.text)?;
-        if let Some(error) = self.consent.revocation_error { return Err(error.into()); }
         match self.credentials.state() {
             CredentialState::Available => {}
             CredentialState::Disabled => return Err(CredentialError::Disabled.into()),

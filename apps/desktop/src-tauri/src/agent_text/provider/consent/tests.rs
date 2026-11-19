@@ -7,7 +7,7 @@ const MODEL: &str = "fixture-model";
 const ALTERNATE: &str = "other-fixture";
 const INPUT: &str = "fictional consent canary";
 
-fn setup(resolver: MockResolver) -> (OfflineProvider<MockResolver>, Start) {
+fn setup<R: CredentialResolver>(resolver: R) -> (OfflineProvider<R>, Start) {
     let mut policy = fixtures::policy();
     let mut alternate = policy.models[0].clone();
     alternate.id = ALTERNATE.into();
@@ -212,6 +212,7 @@ fn revocation_or_withdrawal_during_run_requires_both_cleanup_owners() {
         provider.dispatch(&id, 0).unwrap();
         assert_eq!(provider.rotate_credential(Sample::Replacement), Err(ErrorCode::Busy.into()));
         if revoke { provider.revoke_credential().unwrap(); } else { provider.withdraw_consent().unwrap(); }
+        assert_eq!(provider.credentials.state(), CredentialState::Available);
         assert!(provider.abort_requested());
         assert_eq!(provider.inspect().run.unwrap().state, State::CancelRequested);
         let next = Start { request_id: 2, ..start };
@@ -222,14 +223,161 @@ fn revocation_or_withdrawal_during_run_requires_both_cleanup_owners() {
         assert_eq!(failed.cleanup, Cleanup::Unconfirmed);
         assert_eq!(failed.remote_outcome, RemoteOutcome::Unknown);
         provider.confirm_local_abort(&id, true).unwrap();
+        assert_eq!(provider.credentials.state(), CredentialState::Available);
         assert_eq!(provider.approve_fixture(&next, MODEL, 50), Err(ErrorCode::Busy.into()));
         provider.confirm_runtime_cleanup(&id, true).unwrap();
         let settled = provider.inspect().run.unwrap();
         assert_eq!(settled.error, failed.error);
         assert_eq!(settled.terminal_count, 1);
         assert_eq!(settled.cleanup, Cleanup::Confirmed);
+        if revoke { assert_eq!(provider.revocation(), Revocation::Confirmed); }
         assert!(provider.start_consented(next, MODEL, 50).is_err());
     }
+}
+
+#[test]
+fn revocation_running_waits_for_valid_acks_and_preserves_partial_text() {
+    let (mut p, start) = approved();
+    let id = p.start_consented(start.clone(), MODEL, 0).unwrap();
+    p.dispatch(&id, 0).unwrap();
+    let events = fixtures::events("partial");
+    p.feed(&id, &fixtures::all(&events[..5]), 0).unwrap();
+    let accepted = p.events().to_vec();
+    p.revoke_credential().unwrap();
+    p.revoke_credential().unwrap();
+    assert_eq!(p.revocation(), Revocation::AwaitingCleanup);
+    assert_eq!(p.host.current().unwrap().state, State::CancelRequested);
+    assert_eq!(p.credentials.state(), CredentialState::Available);
+    assert!(p.confirm_runtime_cleanup(&id, true).is_err());
+    p.confirm_local_abort(&id, false).unwrap();
+    p.confirm_local_abort(&id, true).unwrap();
+    p.confirm_runtime_cleanup(&id, false).unwrap();
+    let next = Start { request_id: 2, ..start };
+    assert_eq!(p.start_consented(next, MODEL, 0), Err(ErrorCode::Busy.into()));
+    assert_eq!(p.register_credential(Sample::Replacement), Err(ErrorCode::Busy.into()));
+    assert_eq!(p.credentials.state(), CredentialState::Available);
+    p.confirm_runtime_cleanup(&id, true).unwrap();
+    assert_eq!(p.revocation(), Revocation::Confirmed);
+    assert_eq!(p.credentials.state(), CredentialState::Revoked);
+    let terminal = p.inspect().run.unwrap();
+    assert_eq!(terminal.state, State::Cancelled);
+    assert_eq!(terminal.terminal_count, 1);
+    assert_eq!(terminal.text, "partial");
+    assert!(p.events().starts_with(&accepted));
+    let history = p.events().to_vec();
+    assert!(p.feed(&id, &fixtures::all(&events[5..]), 0).is_err());
+    p.confirm_runtime_cleanup(&id, true).unwrap();
+    assert_eq!(p.inspect().run.unwrap(), terminal);
+    assert_eq!(p.events(), history);
+}
+
+#[test]
+fn revocation_idle_queued_and_already_clean_do_not_wait_for_new_acks() {
+    for phase in ["idle", "queued", "clean"] {
+        let (mut p, start) = approved();
+        if phase != "idle" {
+            let id = p.start_consented(start.clone(), MODEL, 0).unwrap();
+            if phase == "clean" {
+                p.dispatch(&id, 0).unwrap();
+                p.feed(&id, &fixtures::all(&fixtures::events("done")), 0).unwrap();
+                p.confirm_runtime_cleanup(&id, true).unwrap();
+            }
+        }
+        let before = p.inspect().run;
+        p.revoke_credential().unwrap();
+        assert_eq!(p.revocation(), Revocation::Confirmed);
+        assert_eq!(p.credentials.state(), CredentialState::Revoked);
+        assert!(p.consent.approved.is_none());
+        if phase == "queued" {
+            let run = p.inspect().run.unwrap();
+            assert_eq!((run.state, run.cleanup, run.terminal_count), (State::Cancelled, Cleanup::NotRequired, 1));
+        } else { assert_eq!(p.inspect().run, before); }
+        p.register_credential(Sample::Replacement).unwrap();
+        assert_eq!(p.consent.credential_generation, 2);
+        let next = Start { request_id: 2, ..start };
+        assert_eq!(p.start_consented(next, MODEL, 0), Err(AdmissionError::ConsentRequired));
+    }
+}
+
+// Simulates a store which accepts writes and still reports Available after an
+// indeterminate delete. Neither signal proves that the old item was removed.
+#[derive(Default)]
+struct UncertainDeletion { deletes: u32, writes: u32 }
+
+impl CredentialResolver for UncertainDeletion {
+    type Secret = Sample;
+    type Lease<'a> = ();
+    fn state(&self) -> CredentialState { CredentialState::Available }
+    fn register(&mut self, _: Sample) -> Result<(), CredentialError> { self.writes += 1; Ok(()) }
+    fn resolve(&mut self) -> Result<(), CredentialError> { Ok(()) }
+    fn replace(&mut self, value: Sample) -> Result<(), CredentialError> { self.register(value) }
+    fn revoke(&mut self) -> Result<(), CredentialError> {
+        self.deletes += 1;
+        Err(CredentialError::Unavailable)
+    }
+    fn shutdown(&mut self) {}
+}
+
+#[test]
+fn revocation_failure_latches_even_when_resolver_accepts_registration() {
+    for active in [false, true] {
+        let (mut p, start) = setup(UncertainDeletion::default());
+        p.register_credential(Sample::First).unwrap();
+        p.approve_fixture(&start, MODEL, 0).unwrap();
+        let generation = p.consent.credential_generation;
+        let denied = CredentialError::Unavailable;
+        if active {
+            let id = p.start_consented(start.clone(), MODEL, 0).unwrap();
+            p.dispatch(&id, 0).unwrap();
+            p.revoke_credential().unwrap();
+            p.confirm_local_abort(&id, true).unwrap();
+            assert_eq!(p.credentials.deletes, 0);
+            p.confirm_runtime_cleanup(&id, true).unwrap();
+            assert_eq!(p.inspect().run.unwrap().terminal_count, 1);
+        } else {
+            assert_eq!(p.revoke_credential(), Err(denied.into()));
+        }
+        assert!(p.consent.approved.is_none());
+        assert_eq!(p.revocation(), Revocation::Failed(denied));
+        assert_eq!(p.revoke_credential(), Err(denied.into()));
+        assert_eq!(p.credentials.deletes, 1);
+        assert_eq!(p.register_credential(Sample::Replacement), Err(denied.into()));
+        assert_eq!(p.rotate_credential(Sample::Replacement), Err(denied.into()));
+        assert_eq!(p.credentials.writes, 1);
+        // Even an out-of-band successful write cannot reconcile the native latch.
+        p.credentials.register(Sample::Replacement).unwrap();
+        let next = Start { request_id: if active { 2 } else { 1 }, ..start };
+        assert_eq!(p.approve_fixture(&next, MODEL, 0), Err(denied.into()));
+        assert_eq!(p.start_consented(next, MODEL, 0), Err(denied.into()));
+        assert_eq!(p.consent.credential_generation, generation);
+        assert_eq!(p.revocation(), Revocation::Failed(denied));
+    }
+}
+
+#[test]
+fn revocation_after_protocol_failure_preserves_terminal_through_owner_cleanup() {
+    let (mut p, start) = approved();
+    let id = p.start_consented(start, MODEL, 0).unwrap();
+    p.dispatch(&id, 0).unwrap();
+    let events = fixtures::events("accepted");
+    p.feed(&id, &fixtures::all(&events[..5]), 0).unwrap();
+    assert_eq!(p.feed(&id, &fixtures::bytes(&events[4]), 0), Err(ErrorCode::DuplicateEvent));
+    let history = p.events().to_vec();
+    let failed = p.inspect().run.unwrap();
+    assert_eq!(failed.error.as_ref().unwrap().code, ErrorCode::ProtocolError);
+    p.revoke_credential().unwrap();
+    p.runtime_lost(50).unwrap();
+    assert!(p.confirm_runtime_cleanup(&id, true).is_err());
+    assert_eq!(p.revocation(), Revocation::AwaitingCleanup);
+    assert_eq!(p.credentials.state(), CredentialState::Available);
+    p.shutdown(50).unwrap();
+    p.confirm_lost_owned_cleanup().unwrap();
+    assert_eq!(p.revocation(), Revocation::Confirmed);
+    assert_eq!(p.credentials.state(), CredentialState::Disabled);
+    let run = p.inspect().run.unwrap();
+    assert_eq!((run.text.as_str(), run.terminal_count, run.cleanup), ("accepted", 1, Cleanup::Confirmed));
+    assert_eq!(run.error, failed.error);
+    assert_eq!(p.events(), history);
 }
 
 #[test]

@@ -15,7 +15,19 @@
 | Available | 한 번에 하나의 mutable borrow를 통해 lease를 발급한다. 중복 register는 AccessDenied. |
 | AccessDenied / Unavailable | 각각의 기존 credential 오류를 유지한다. 실패한 접근을 Provider 오류로 변환하거나 다른 저장소에서 재시도하지 않는다. |
 
-Register·rotate 성공 시 credential generation이 증가한다. 활성 run 또는 미확인 cleanup이 있으면 편집은 Busy다. Borrowed lease가 사용되는 동안 replace/shutdown을 호출하는 두 코드 예제는 컴파일 단계에서 거부되어야 한다. Revoke/withdraw는 동의를 폐기하고 활성 요청을 기존 Host cancel/cleanup으로 넘긴다. 실패한 revoke도 admission을 닫는다. Shutdown은 승인과 resolver를 닫고 기존 Host 종료 절차를 따른다. 비밀 버퍼의 OS 수준 삭제나 실제 Keychain 항목 삭제는 검증 범위 밖이다.
+Register·rotate 성공 시 credential generation이 증가한다. 활성 run 또는 미확인 cleanup이 있으면 편집은 Busy다. Borrowed lease가 사용되는 동안 replace/shutdown을 호출하는 두 코드 예제는 컴파일 단계에서 거부되어야 한다.
+
+### Credential 철회 순서
+
+Native owner는 철회 요청을 받으면 먼저 admission을 잠그고 승인 슬롯을 비운 뒤 활성 run을 취소한다. 단순 동의 철회는 credential 삭제를 요청하지 않는다. 호출자는 `revocation()`으로 아래 진행 상태를 확인한다. `revoke_credential()`의 성공 반환에는 cleanup 대기 중인 요청 접수도 포함된다.
+
+| 진행 상태 | 삭제·재등록 계약 |
+| --- | --- |
+| `AwaitingCleanup` | Run이 없거나 이미 terminal이고 cleanup이 끝났으면 즉시 resolver 삭제를 시도한다. Queued 취소는 자원이 없어 `NotRequired`로 진행한다. Dispatch 뒤에는 adapter와 runtime 양쪽 자원 해제를 확인할 때까지 삭제·등록·회전·새 admission을 차단한다. Deadline 초과나 한쪽 ACK로는 삭제하지 않는다. Runtime loss 후에는 소유자가 확인한 정리 경로를 사용한다. |
+| `Confirmed` | Resolver 삭제 성공. 명시적 새 등록에 성공하면 generation이 증가하고 상태가 `NotRequested`로 돌아간다. 다음 요청에는 새 동의가 필요하다. |
+| `Failed(error)` | 삭제가 실패했거나 확인되지 않았다. 기존 안전한 credential 오류를 보존하고 resolve·승인·등록·회전을 막는다. 중복 철회로 삭제를 재시도하지 않는다. Resolver가 Available을 보고하거나 외부 쓰기가 성공해도 잠금은 유지된다. |
+
+지연된 삭제 결과는 native 철회 상태에 기록한다. 유효한 cleanup ACK는 Host에서 처리되며 이미 확정한 terminal·partial output은 보존된다. 철회 대기 중 shutdown은 Host를 닫고 cleanup과 삭제 시도 뒤 resolver를 종료한다. 현재 잠금은 메모리의 owner 수명에 적용된다. 영구 credential 도입 전에는 이전 항목 삭제를 확인하고 재시작 후에도 불확실성을 복원하는 명시적 reconciliation 계약이 필요하다. 이 단계에는 복구 API와 실제 Keychain 접근이 없다.
 
 ## 동의와 admission
 
