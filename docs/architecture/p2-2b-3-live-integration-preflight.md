@@ -56,13 +56,13 @@
 
 | 중단 지점 | 명시적 복구와 허용 전이 |
 |---|---|
-| 철회 접수 / AwaitingCleanup | 같은 직렬화 경계에서 admission을 닫고 미소비 승인을 폐기한다. durable intent를 먼저 확정한 뒤 철회 접수를 응답하고 활성 run을 취소한다. 기록 쓰기 실패는 잠금 유지 및 운영 오류다. Crash 뒤에는 journal과 단일 owner 잠금을 복원하기 전 resolve를 금지한다. |
+| 철회 접수 / AwaitingCleanup | 철회 요청을 받으면 같은 직렬화 경계에서 신규 admission을 잠그고 미소비 동의를 폐기한 뒤 활성 run에 취소·로컬 abort를 요청한다. 최초 journal 쓰기를 기다리지 않고 cleanup을 진행하며, 저장 중에도 Host clock과 abort 처리를 계속한다. 철회 의도의 durable commit을 확인한 뒤에만 영속 접수 성공을 응답한다. 쓰기 실패 시 잠금을 유지하고 운영 오류를 보고하며, 이미 요청한 취소·abort와 cleanup을 계속한다. Crash 뒤에는 journal과 단일 owner 잠금을 복원하기 전 resolve를 금지한다. |
 | Crash 중 미완료 cleanup | 새 instance에는 과거 승인·lease·ACK가 무효다. 재시작만으로 성공 ACK를 생성하지 않는다. 이전 owner 소멸과 해당 로컬 자원 해제를 확인하고 불명확하면 AwaitingCleanup을 유지한다. queued·자원 미생성은 NotRequired, 이미 확인된 cleanup은 재수행하지 않는다. |
-| 삭제 진입 / 결과 불명 | 두 cleanup 확인 후 삭제 시도 의도를 먼저 durable 기록하고 정확한 slot만 삭제한다. 실패·응답 유실·삭제 뒤 commit 전 crash는 Failed/Uncertain으로 잠근다. 재시작·재등록·다른 credential 선택으로 해제하거나 자동 삭제 재시도하지 않는다. |
+| 삭제 진입 / 결과 불명 | Adapter와 Runtime 양쪽의 cleanup을 확인하고 삭제 시도 의도의 durable commit을 확인한 뒤에만 해당 credential slot을 삭제한다. 실패·응답 유실·삭제 뒤 commit 전 crash는 Failed/Uncertain으로 잠근다. 재시작·재등록·다른 credential 선택으로 해제하거나 자동 삭제 재시도하지 않는다. |
 | 명시적 reconciliation | 사용자가 승인한 동일 서명·group·slot에서만 item 유무를 확인한다. 잠금/권한 거부를 부재로 해석하지 않는다. orphan·journal 누락·세대 불일치는 격리한다. 항목이 남았으면 별도의 명시적 폐기 결정이 필요하다. 부재와 정리를 입증해 Confirmed를 durable commit한 후에만 새 명시적 등록을 허용한다. |
 | 재등록 / 회전 중 crash | 새 세대를 예약한 intent와 Keychain 변경·commit을 구분한다. 재시작 시 두 기록의 연결이 불확실하면 잠근다. 조정 성공 후 이전보다 큰 generation만 발행하며 과거 consent는 복구하지 않는다. |
 
-G3 증거는 각각의 durable write 전후, 삭제 성공 후 기록 실패, 중복 명령, 재설치 후 고아 항목을 주입한 결정적 시험이다. 미확인 상태의 신규 admission·resolve·자동 retry 횟수는 모두 0이어야 한다.
+G3에서는 활성 run의 최초 철회 기록 쓰기를 한 시험에서는 지연시키고 다른 시험에서는 실패시킨다. 두 경우 모두 취소·abort와 cleanup이 진행되는지, 신규 admission이 계속 차단되고 취소 이후 수락한 delta가 0개인지 확인한다. 기록 실패나 한쪽 owner의 ACK만으로 삭제 성공을 보고할 수 없다. 취소 전까지 수락한 partial output은 그대로이며 terminal은 정확히 한 번만 확정되어야 한다. 기존 계획대로 각 durable write 전후의 crash, 삭제 성공 후 기록 실패, 중복 명령, 재설치 후 고아 항목도 시험한다. 미확인 상태의 신규 admission·resolve·자동 retry 횟수는 모두 0이어야 한다.
 
 ## 7. Native Consent Gate
 
@@ -111,7 +111,7 @@ G3 증거는 각각의 durable write 전후, 삭제 성공 후 기록 실패, �
 |---|---|---|---|---|---|---|
 | G1 Single Host | 기존 앱 Host에 메모리 provider 연결, 두 source 경합·위조 sender·reload fixture | 이중 실행·권한 혼동 | 1 admission, source 격리, terminal 1, revision 단조, 기존 Synthetic 회귀 | provider 경로 닫기 | Gate 0 리뷰 | NOT_IMPLEMENTED |
 | G2 Credential & Signing | 서명된 개발 앱에서 승인된 전용 test item 등록·잠금·거부·회전·삭제·재설치 시험 | 키 노출·타 앱 접근 | 정확한 group·slot만 접근, 실패 시 lease 0, 안전 코드만 노출 | resolve 차단 | 개발 서명 결정 및 test item 별도 승인 | NOT_RUN |
-| G3 Revocation | §6 journal, crash 위치별 결정적 시험과 G2 item 대조 | 재시작 후 철회 우회 | 불명확하면 잠금 지속, 확인된 삭제 뒤에만 재등록 | 격리·사용자 조정 | G2 계약, 최종 확인은 G2 증거 | NOT_IMPLEMENTED |
+| G3 Revocation | §6의 활성 run 최초 쓰기 지연·실패 시험, crash 위치별 시험과 G2 item 대조 | 취소 지연·재시작 후 철회 우회 | 두 경우 모두 취소·abort·cleanup 진행, admission 차단, 취소 후 delta 수락 0개, partial output 보존·terminal count 1. 기록 실패·단일 ACK로 삭제 성공 선언 금지, 확인된 삭제 뒤에만 재등록 | 잠금 유지·사용자 조정 | G2 계약, 최종 확인은 G2 증거 | NOT_IMPLEMENTED |
 | G4 Consent | Native preview·issuer, 변경/취소/replay·세대/정책 교체 시험 | 다른 요청 전송 | 동일 바이트·대상·scope·가격으로 1회 소비, 불일치 전송 0 | 슬롯 폐기 | G1·G3·G5·G6 | NOT_IMPLEMENTED |
 | G5 Cost | 고정 모델·가격표·tokenizer 대조, durable 원장 동시성·재시작 fixture | 예산 초과·중복 과금 | 최악액 예약, 일·월·rate 초과 거부, unknown 유지 | 비용 admission 차단 | 모델·프로젝트·USD 한도 승인 | BLOCKED |
 | G6 Privacy | 프로젝트 정책 확인표, payload allowlist 및 비노출 감사 | 민감정보 전송·잘못된 보존 안내 | 합성 1건만 허용, 실제 보존 조건과 안내 일치 | 동의 발행 차단 | 프로젝트 소유자 결정 | OPEN DECISION |
