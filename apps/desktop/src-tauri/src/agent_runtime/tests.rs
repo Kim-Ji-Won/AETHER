@@ -1,4 +1,5 @@
 use super::*;
+mod g1;
 use tauri::ipc::InvokeResponseBody;
 
 fn json(text: &str) -> InvokeBody {
@@ -36,6 +37,12 @@ fn control(r: &mut Runtime, action: &str) -> Result<(), ErrorCode> {
 fn frame(r: &mut Runtime, seq: u32, kind: &str, payload: &str) -> Result<(), ErrorCode> {
     r.runtime_input(&json(&format!(r#"{{"lease":"lease","action":"frame","data":{{"namespace":"agent.text.v1","host_instance_id":"host","run_id":1,"request_id":1,"attempt_id":1,"session_generation":1,"correlation_id":"run-1-attempt-1","source_kind":"synthetic","source_seq":{seq},"type":"{kind}","payload":{payload}}}}}"#)))
 }
+fn synthetic_adapter(r: &Runtime) -> Option<&SyntheticAdapter> {
+    match r.active.as_ref() {
+        Some(ActiveSource::Synthetic {adapter, ..}) => adapter.as_ref(),
+        _ => panic!("expected Synthetic owner"),
+    }
+}
 fn cancel(r: &mut Runtime) {
     let s = r.host.inspect();
     r.host.cancel(&s.session, &s.run.unwrap().identity).unwrap();
@@ -72,7 +79,7 @@ fn c01_queued_cancel_creates_no_adapter_and_requires_no_ack() {
     let mut r = ready(); start(&mut r); cancel(&mut r);
     let run = r.host.current().unwrap();
     assert_eq!((run.state, run.cleanup, run.terminal_count), (State::Cancelled, Cleanup::NotRequired, 1));
-    assert!(r.adapter.is_none());
+    assert!(synthetic_adapter(&r).is_none());
     assert_eq!(control(&mut r, "dispatch"), Err(ErrorCode::AlreadyTerminal));
     assert_eq!(control(&mut r, "release"), Err(ErrorCode::InvalidIdentity));
 }
@@ -97,7 +104,7 @@ fn cancellation_wins_completion_and_abort_is_idempotent() {
     frame(&mut r, 1, "TextDelta", r#"{"text":"partial"}"#).unwrap();
     cancel(&mut r); cancel(&mut r);
     assert_eq!(frame(&mut r, 2, "Completed", "{}"), Err(ErrorCode::AlreadyTerminal));
-    assert_eq!(r.adapter.as_ref().unwrap().abort_count(), 1);
+    assert_eq!(synthetic_adapter(&r).unwrap().abort_count(), 1);
     control(&mut r, "release").unwrap();
     cancel(&mut r);
     assert_eq!(r.host.current().unwrap().terminal_count, 1);
@@ -109,7 +116,7 @@ fn idle_deadline_aborts_without_renderer_and_missing_ack_is_unconfirmed() {
     r.tick(2_999).unwrap(); assert_eq!(r.host.current().unwrap().state, State::Running);
     r.tick(3_000).unwrap();
     assert_eq!(r.host.current().unwrap().error.as_ref().unwrap().code, ErrorCode::IdleTimeout);
-    assert_eq!(r.adapter.as_ref().unwrap().abort_count(), 1);
+    assert_eq!(synthetic_adapter(&r).unwrap().abort_count(), 1);
     r.tick(5_000).unwrap(); assert_eq!(r.host.current().unwrap().cleanup, Cleanup::Unconfirmed);
     assert!(!r.idle());
     control(&mut r, "release").unwrap();
@@ -174,7 +181,7 @@ fn bound_malformed_frame_fails_only_its_owned_stream_and_clears_adapter() {
     let mut r = ready(); start(&mut r); control(&mut r, "dispatch").unwrap();
     assert_eq!(r.runtime_input(&json(r#"{"lease":"lease","action":"frame","data":{"CANARY_SECRET_DO_NOT_LOG":true}}"#)), Err(ErrorCode::ProtocolError));
     r.tick(0).unwrap();
-    assert_eq!(r.adapter.as_ref().unwrap().abort_count(), 1);
+    assert_eq!(synthetic_adapter(&r).unwrap().abort_count(), 1);
     assert_eq!(r.host.current().unwrap().error.as_ref().unwrap().code, ErrorCode::ProtocolError);
     assert!(!format!("{:?}", r.view()).contains("CANARY_SECRET"));
     control(&mut r, "release").unwrap();

@@ -3,6 +3,7 @@ pub mod credential;
 pub mod consent;
 pub mod error;
 pub mod policy;
+pub mod adapter;
 mod transport;
 mod sse;
 mod mapper;
@@ -79,9 +80,8 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
     pub fn local_transport_closed(&self)->bool{self.local_closed}
     pub fn preview(&self)->Option<&RequestPreview>{self.request.as_ref()}
     fn commit_start(&mut self, start:Start, request:RequestPreview, now:u64)->Result<Identity,ErrorCode>{
-        let id=self.host.start_source(start,"provider")?;
+        let id=adapter::admit(&mut self.host, &mut self.ledger, start, &request, now)?;
         self.consented_attempt=None;
-        self.ledger.reserve(now,&request);
         self.identity=Some(id.clone());self.stream=None;self.request=Some(request);
         self.abort_requested=false;self.local_closed=true;self.last_error=None;
         Ok(id)
@@ -92,10 +92,7 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
     }
     pub fn dispatch(&mut self,id:&Identity,now:u64)->Result<(),ErrorCode>{
         self.bound(id)?;self.advance_to(now)?;
-        self.host.dispatch(id)?;
-        self.stream=Some(Stream {decoder:Decoder::new(self.ledger.policy.max_sse_frame_bytes,self.ledger.policy.max_stream_bytes),
-            mapper:Mapper::new(self.host.policy.max_output_bytes,self.host.policy.max_delta_bytes,
-                self.request.as_ref().ok_or(ErrorCode::PolicyUnconfigured)?.model_id()),canonical_seq:0,events:0});
+        self.stream = Some(Stream::dispatch(&mut self.host, id, &self.ledger, self.request.as_ref())?);
         self.local_closed=false;Ok(())
     }
     pub fn advance_to(&mut self,now:u64)->Result<(),ErrorCode>{
@@ -116,62 +113,27 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
     }
     fn feed_owned(&mut self,id:&Identity,bytes:&[u8],now:u64)->Result<(),ErrorCode>{
         self.ingest_ready(id,now)?;
-        // At most one framed message/JSON is allocated at a time, irrespective of chunk size.
-        for byte in bytes {
-            let message=match self.stream.as_mut().unwrap().decoder.push(*byte){
-                Ok(m)=>m,Err(e)=>return self.reject(e),
-            };
-            if let Some(message)=message {
-                let stream=self.stream.as_mut().unwrap();
-                stream.events+=1;
-                if stream.events>transport::MAX_EVENTS { return self.reject(ProviderError::BufferLimit); }
-                let mapped=match self.stream.as_mut().unwrap().mapper.accept(message){
-                    Ok(m)=>m,Err(e)=>return self.reject(e),
-                };
-                match mapped {
-                    Mapped::Metadata=>{},
-                    Mapped::Delta(text)=>self.canonical(id,AdapterPayload::TextDelta(text))?,
-                    Mapped::Completed(usage)=>{
-                        if let Err(e)=self.ledger.record(usage){return self.reject(e);}
-                        self.canonical(id,AdapterPayload::Completed)?;
-                        self.stream=None;self.request=None;
-                        if self.transport.is_none() {
-                            self.local_closed=true;
-                            self.host.release(id,CleanupPart::Adapter,true)?;
-                        }
-                        // Any bytes following terminal belong to a closed stream. Ignore them;
-                        // they cannot create canonical events or mutate a terminal.
-                        return Ok(());
-                    }
-                    Mapped::Failed(e,usage)=>{
-                        if let Some(usage)=usage {
-                            if let Err(accounting_error)=self.ledger.record(usage){return self.reject(accounting_error);}
-                        }
-                        return self.reject(e);
-                    }
+        match self.stream.as_mut().unwrap().feed(&mut self.host, id, &mut self.ledger, bytes) {
+            Ok(false) => Ok(()),
+            Ok(true) => {
+                self.stream = None;
+                self.request = None;
+                if self.transport.is_none() {
+                    self.local_closed = true;
+                    self.host.release(id, CleanupPart::Adapter, true)?;
                 }
+                Ok(())
+            }
+            Err(error) => {
+                self.abort_requested = true;
+                if let adapter::FeedError::Provider(e) = &error { self.last_error = Some(*e); }
+                Err(error.apply(&mut self.host))
             }
         }
-        Ok(())
-    }
-    fn canonical(&mut self,id:&Identity,payload:AdapterPayload)->Result<(),ErrorCode>{
-        let stream=self.stream.as_mut().unwrap();
-        stream.canonical_seq=stream.canonical_seq.checked_add(1).ok_or(ErrorCode::CounterExhausted)?;
-        let result=self.host.ingest(Frame{identity:id.clone(),source_seq:stream.canonical_seq,payload});
-        if result.is_err(){self.abort_requested=true;}
-        result
     }
     fn reject(&mut self,e:ProviderError)->Result<(),ErrorCode>{
         self.last_error=Some(e);self.abort_requested=true;
-        let ingress = e.host_code();
-        // DuplicateEvent identifies the rejected frame. Repeated SSE sequence numbers
-        // violate the bound stream's protocol and terminate the run.
-        let terminal = match e {
-            ProviderError::Duplicate => ErrorCode::ProtocolError,
-            _ => ingress,
-        };
-        self.host.fail(terminal, Phase::Stream);
-        Err(ingress)
+        Err(adapter::reject(&mut self.host, e))
     }
     pub fn end_of_stream(&mut self,id:&Identity,now:u64)->Result<(),ErrorCode>{
         if self.transport.is_some() { return Err(ErrorCode::InvalidIdentity); }
@@ -181,9 +143,7 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
         self.bound(id)?;self.advance_to(now)?;
         if self.local_closed {return Ok(());}
         if self.host.current().is_some_and(|r|r.state!=State::Running){return Err(ErrorCode::AlreadyTerminal);}
-        let e=match self.stream.as_ref().ok_or(ErrorCode::InvalidIdentity)?.decoder.finish(){
-            Ok(())=>ProviderError::Incomplete,Err(e)=>e,
-        };
+        let e=self.stream.as_ref().ok_or(ErrorCode::InvalidIdentity)?.eof_error();
         self.reject(e)
     }
     pub fn transport_error(&mut self,id:&Identity,e:ProviderError,now:u64)->Result<(),ErrorCode>{

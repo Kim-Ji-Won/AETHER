@@ -4,6 +4,16 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use aether_desktop::agent_text::{self as contract, synthetic::SyntheticAdapter, *};
 use tauri::ipc::InvokeBody;
+use contract::provider::adapter::ProviderBudget;
+mod provider;
+use provider::ProviderOwner;
+
+enum ActiveSource {
+    Synthetic { identity: Identity, lease: String, adapter: Option<SyntheticAdapter> },
+    // Construction is restricted to the binary's native test entry.
+    #[cfg_attr(not(test), allow(dead_code))]
+    Provider(ProviderOwner),
+}
 
 type SessionWire = (String, u32, u32, u32, u64, u32, bool);
 type RunWire = (u32, u32, u32, u32, String, String, u32, u8, String, String, String);
@@ -18,51 +28,94 @@ fn policy() -> Policy {
 
 struct Runtime {
     host: Host,
-    adapter: Option<SyntheticAdapter>,
-    lease: Option<String>,
+    active: Option<ActiveSource>,
+    provider_budget: Option<ProviderBudget>,
     lost_run: Option<u32>,
     epoch: u32,
+    attached_generation: Option<u32>,
 }
 impl Runtime {
     fn new(instance: &str) -> Self {
         Self { host: Host::new(instance, policy()).expect("fixed synthetic policy"),
-            adapter: None, lease: None, lost_run: None, epoch: 0 }
+            active: None, provider_budget: None, lost_run: None, epoch: 0, attached_generation: None }
     }
     fn attach(&mut self, instance: &str, epoch: u32, live: bool) -> Result<(), ErrorCode> {
         self.host.attach(instance, epoch, live)?;
         self.epoch = epoch;
+        self.attached_generation = Some(self.host.inspect().session_generation);
         Ok(())
     }
     fn tick(&mut self, now: u64) -> Result<(), ErrorCode> {
         self.host.advance_to(now)?;
-        // Actual owned Rust queue is cleared before Adapter release is confirmed.
-        if self.host.current().is_some_and(|r| r.state == State::CancelRequested || r.state.terminal()) {
-            if let Some(adapter) = &mut self.adapter { adapter.abort(&mut self.host)?; }
+        match &mut self.active {
+            Some(ActiveSource::Provider(owner)) => owner.tick(&mut self.host, &mut self.lost_run)?,
+            Some(ActiveSource::Synthetic {adapter: Some(adapter), ..})
+                if self.host.current().is_some_and(|r| r.state == State::CancelRequested || r.state.terminal()) => {
+                adapter.abort(&mut self.host)?;
+            }
+            _ => {}
         }
         Ok(())
     }
-    fn bound(&self, lease: &str) -> Result<Identity, ErrorCode> {
-        if self.lease.as_deref() != Some(lease) { return Err(ErrorCode::InvalidIdentity); }
-        let id = self.host.current().ok_or(ErrorCode::InvalidIdentity)?.identity.clone();
-        if id.session_generation != self.host.inspect().session_generation { return Err(ErrorCode::InvalidIdentity); }
-        Ok(id)
-    }
-    fn start(&mut self, body: &InvokeBody, lease: String) -> Result<(), ErrorCode> {
-        self.host.start(Start::parse(body, self.host.policy().max_input_bytes)?)?;
-        self.adapter = None;
-        self.lease = Some(lease);
+
+    // Native timer owns this nonblocking poll. Renderer commands only advance time.
+    fn native_tick(&mut self, now: u64) -> Result<(), ErrorCode> {
+        self.tick(now)?;
+        if let Some(ActiveSource::Provider(owner)) = &mut self.active {
+            let budget = self.provider_budget.as_mut().ok_or(ErrorCode::PolicyUnconfigured)?;
+            owner.pump(&mut self.host, budget)?;
+        }
         Ok(())
     }
+
+    fn start(&mut self, body: &InvokeBody, lease: String) -> Result<(), ErrorCode> {
+        let identity = self.host.start(Start::parse(body, self.host.policy().max_input_bytes)?)?;
+        self.lost_run = None;
+        self.active = Some(ActiveSource::Synthetic {identity, lease, adapter: None});
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn start_provider(&mut self, start: Start, model: &str, now: u64) -> Result<Identity, ErrorCode> {
+        self.tick(now)?;
+        if self.attached_generation != Some(self.host.inspect().session_generation) { return Err(ErrorCode::StaleSession); }
+        let budget = self.provider_budget.as_mut().ok_or(ErrorCode::PolicyUnconfigured)?;
+        let attempt = budget.admit(&mut self.host, start, model)?;
+        let id = attempt.identity().clone();
+        self.lost_run = None;
+        self.active = Some(ActiveSource::Provider(ProviderOwner::queued(attempt)));
+        Ok(id)
+    }
+
+    #[cfg(test)]
+    fn dispatch_provider(&mut self, id: &Identity, now: u64) -> Result<provider::FixtureProducer, ErrorCode> {
+        self.tick(now)?;
+        let Some(ActiveSource::Provider(owner)) = &mut self.active else { return Err(ErrorCode::InvalidIdentity) };
+        owner.dispatch(&mut self.host, self.provider_budget.as_ref().ok_or(ErrorCode::PolicyUnconfigured)?, id)
+    }
+
+    fn cancel_input(&mut self, body: &InvokeBody) -> Result<(), ErrorCode> {
+        if matches!(self.active, Some(ActiveSource::Provider(_))) { return Err(ErrorCode::InvalidIdentity); }
+        self.host.cancel_command(contract::wire::Cancel::parse(body)?)
+    }
+
     fn runtime_input(&mut self, body: &InvokeBody) -> Result<(), ErrorCode> {
         let InvokeBody::Json(j) = body else { return Err(ErrorCode::InvalidInput); };
         if j.as_object().map(|o| o.len()) != Some(3) { return Err(ErrorCode::InvalidInput); }
         let lease = j["lease"].as_str().ok_or(ErrorCode::InvalidIdentity)?;
-        let id = self.bound(lease)?; // before parsing a frame or failing any current run
+        let Some(ActiveSource::Synthetic {identity, lease: issued, adapter}) = &mut self.active else {
+            return Err(ErrorCode::InvalidIdentity);
+        };
+        if self.attached_generation != Some(identity.session_generation) || issued != lease || self.host.current().is_none_or(|r| r.identity != *identity)
+            || self.host.inspect().session_generation != identity.session_generation {
+            return Err(ErrorCode::InvalidIdentity);
+        }
+        let id = identity.clone(); // Authenticate source and attempt before even parsing a frame.
         let action = j["action"].as_str().ok_or(ErrorCode::InvalidInput)?;
         let data = j.get("data").ok_or(ErrorCode::InvalidInput)?;
         match action {
             "dispatch" if data.as_object().is_some_and(|o| o.is_empty()) => {
-                self.adapter = Some(SyntheticAdapter::dispatch(&mut self.host, &id)?);
+                *adapter = Some(SyntheticAdapter::dispatch(&mut self.host, &id)?);
             }
             "frame" => {
                 if self.host.inspect().closing { return Err(ErrorCode::StaleSession); }
@@ -77,20 +130,20 @@ impl Runtime {
                     }
                 };
                 if frame.identity != id { return Err(ErrorCode::InvalidIdentity); }
-                if self.adapter.is_none() { return Err(ErrorCode::InvalidIdentity); }
+                if adapter.is_none() { return Err(ErrorCode::InvalidIdentity); }
                 // Sequential IPC is a one-frame barrier. Preserve the source sequence;
                 // never manufacture a new sequence for an untrusted runtime frame.
                 let completed = matches!(frame.payload, AdapterPayload::Completed);
                 self.host.ingest(frame)?;
-                if completed { self.adapter.as_mut().unwrap().close(&mut self.host)?; }
+                if completed { adapter.as_mut().unwrap().close(&mut self.host)?; }
             }
             "release" if data.as_object().is_some_and(|o| o.is_empty()) => {
                 let run = self.host.current().ok_or(ErrorCode::InvalidIdentity)?;
                 // Runtime ACK cannot release a still-producing adapter or a queued run.
-                if self.adapter.is_none() { return Err(ErrorCode::InvalidIdentity); }
+                if adapter.is_none() { return Err(ErrorCode::InvalidIdentity); }
                 if run.state == State::Running {
-                    self.adapter.as_mut().unwrap().close(&mut self.host)?;
-                } else { self.adapter.as_mut().unwrap().abort(&mut self.host)?; }
+                    adapter.as_mut().unwrap().close(&mut self.host)?;
+                } else { adapter.as_mut().unwrap().abort(&mut self.host)?; }
                 self.host.release(&id, CleanupPart::Runtime, true)?;
             }
             _ => return Err(ErrorCode::InvalidInput),
@@ -98,13 +151,19 @@ impl Runtime {
         Ok(())
     }
     fn lost(&mut self) -> Result<(), ErrorCode> {
+        self.attached_generation = None;
         self.lost_run = self.host.current().map(|r| r.identity.run_id);
-        self.lease = None; // revoke sender before generation changes
-        self.adapter = None; // Drop releases the entire owned, memory-only adapter queue
+        match &mut self.active {
+            Some(ActiveSource::Provider(owner)) => owner.context_lost(),
+            _ => self.active = None, // revoke the synthetic lease and drop its queue
+        }
         self.host.runtime_lost()
     }
     fn page_replaced(&mut self) -> Result<(), ErrorCode> {
         // Called only by native PageLoad Finished / Destroyed, not a UI assertion.
+        if let Some(ActiveSource::Provider(owner)) = &mut self.active {
+            return owner.tick(&mut self.host, &mut self.lost_run);
+        }
         if let Some(id) = self.lost_run.take() { self.host.confirm_owned_cleanup(id)?; }
         Ok(())
     }
@@ -124,7 +183,11 @@ impl Runtime {
             r.identity.session_generation, r.identity.correlation_id, format!("{:?}", r.state),
             r.last_seq, r.terminal_count, r.text, r.error.map(|e| format!("{:?}", e.code)).unwrap_or_default(),
             format!("{:?}", r.cleanup)));
-        (session, run, self.lease.clone())
+        let lease = match &self.active {
+            Some(ActiveSource::Synthetic {lease, ..}) => Some(lease.clone()),
+            _ => None,
+        };
+        (session, run, lease)
     }
 }
 
@@ -140,7 +203,11 @@ pub fn install(instance: &str) {
     std::thread::spawn(|| loop {
         std::thread::sleep(Duration::from_millis(10));
         let Ok(mut r) = runtime().unwrap().lock() else { return; };
-        if r.tick(elapsed()).is_err() { let _ = r.shutdown(); }
+        if r.native_tick(elapsed()).is_err() {
+            // A classified provider failure has already terminated just its attempt.
+            if matches!(r.active, Some(ActiveSource::Provider(_))) && r.host.current().is_some_and(|run| run.state == State::Failed) { continue; }
+            let _ = r.shutdown();
+        }
         // Does not depend on WebKit timers, render frames, visibility, or window focus.
     });
 }
@@ -181,7 +248,7 @@ pub fn command(window: &tauri::WebviewWindow, body: &InvokeBody, action: &str) -
         if !live && !cleanup { return Err("StaleSession".into()); }
         let result = match action {
             "start" => r.start(payload, crate::lifecycle::fresh_id()),
-            "cancel" => contract::wire::Cancel::parse(payload).and_then(|c| r.host.cancel_command(c)),
+            "cancel" => r.cancel_input(payload),
             "runtime" => r.runtime_input(payload),
             "snapshot" => contract::wire::snapshot_session(payload).and_then(|session| {
                 if session == s.session { Ok(()) } else { Err(ErrorCode::StaleSession) }
