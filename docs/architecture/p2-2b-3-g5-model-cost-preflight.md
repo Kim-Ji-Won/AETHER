@@ -91,7 +91,7 @@ Cache 옵션 생략·짧은 합성 문구·`store:false`를 write 비용 또는 
 | `O`, `R` | 전체 과금 output과 그 안의 reasoning. `0 <= R <= O`; output 총량에 `R`을 다시 더하지 않음 |
 | `E`, `Ecap` | 승인 범위의 추가 과금과 그 상한. 각 추가 항목을 개별 올림해 합한 정수 micro-USD이며, 미지원/상한 불명은 거부. 기능을 껐다는 증거 없이 0으로 두지 않음 |
 
-공식 Responses의 TTL별 필드는 `input_tokens_details.cache_write_tokens_details.ttl_30m_tokens`와 `ttl_12h_tokens`다. [Responses][O4]. 해당 모델/schema가 정의하지 않은 항목, 누락 의미가 미확인인 필드, 모르는 유료 분류는 0으로 추정하지 않는다. 미지원 event·중복 SSE의 기존 ProtocolError/단일 terminal 계약도 완화하지 않는다.
+공식 Responses의 TTL별 필드는 `input_tokens_details.cache_write_tokens_details.ttl_30m_tokens`와 `ttl_12h_tokens`다. [Responses][O4]. 해당 모델/schema가 정의하지 않은 항목, 누락 의미가 미확인인 필드, 모르는 유료 분류는 0으로 추정하지 않는다. 미지원 이벤트의 terminal 오류는 `UnsupportedContent`다. 중복 SSE sequence는 ingress에서 `DuplicateEvent`로 거부하고 terminal 오류는 `ProtocolError`로 한 번만 확정한다.
 
 **추천 계산 후보:** 가격 decimal을 정확한 유리수로 읽고 로컬 최소 단위를 `micro-USD = 10^-6 USD`로 두는 방안을 검토한다. USD/백만 token의 숫자는 micro-USD/token과 수치가 같다. 각 항목을 micro-USD 단위로 보수적으로 올린 뒤 합산한다. 이 단위와 정수 폭은 아직 제품 설정이 아니다.
 
@@ -186,7 +186,7 @@ Host admission 후 저장 실패에서도 과거 fixture lease가 항상 0회였
 | G5-T07 | 두 owner의 동일 잔여 예산 경쟁과 같은 attempt replay에서 초과 예약·중복 예약·중복 전송 permit 0 | NOT_RUN |
 | G5-T08 | UTC 자정·월 경계·역행·큰 전진 점프·재시작으로 미정산액 소실/예산 재발급/잠금 해제 0 | NOT_RUN |
 | G5-T09 | 예약/의도 durable commit 이전 reader·`Http::open` 0. Commit/ACK 유실 시 재전송 0 | NOT_RUN |
-| G5-T10 | (a) 최초 예약 쓰기 지연·실패: Queued에서 clock/cancel/철회 처리, reader 0·terminal 1·늦은 ACK 전송 0. (b) Dispatch 후 usage/비용 기록 지연·실패: 기존 partial output·terminal 1 보존 | NOT_RUN |
+| G5-T10 | (a) 최초 예약 쓰기 대기 중 clock/cancel/철회 처리, reader·Provider 출력 0. 취소 또는 저장 실패로 종료하면 terminal 1, 늦은 ACK 전송 0. (b) 전송 후 usage/비용 기록이 지연·실패해도 이미 수락한 partial output을 보존한다. 두 경우 모두 저장 지연만으로 terminal을 만들지 않으며 종료 후 늦은 ACK로 terminal을 바꾸거나 재전송하지 않는다. | NOT_RUN |
 | G5-T11 | 각 write 전후 crash·원장 누락/손상/구버전/rollback·stale owner에서 동의 복원·자동 환불·빈 원장 초기화로 전송 허용 0 | NOT_RUN |
 | G5-T12 | Usage 누락/초과/모순·조정 commit 실패는 의무액 유지. 중복 조정·로그 TTL·대화 삭제가 예산/철회 상태를 초기화하지 않음 | NOT_RUN |
 
