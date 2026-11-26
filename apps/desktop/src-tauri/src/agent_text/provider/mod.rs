@@ -209,3 +209,6 @@ impl<R: credential::CredentialResolver> OfflineProvider<R> {
 mod tests;
 #[cfg(test)]
 mod fixtures;
+// G3 protocol/crash model only; no product journal or recovery issuer is enabled.
+#[cfg(test)]
+mod revocation;
