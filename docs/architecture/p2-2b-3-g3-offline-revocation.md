@@ -137,3 +137,37 @@ TLS 실패는 기존 `loopback_wrong_hostname_rejected_before_http`다. Python T
 E5b/E5c는 `PARTIAL`, E5d ADR은 `PROPOSED`, 전역 Runtime은 미선정이다. 이 PR의 오프라인 회귀가 통과해도 G2 OS 시험은 `NOT_RUN`, 제품 G3는 `NOT_IMPLEMENTED`로 남는다. G3의 최종 통과에는 실제 저장소·단일 owner·G2 항목·서명 앱을 함께 검증한 증거가 필요하다.
 
 Draft PR은 최신 HEAD의 별도 병합 승인까지 미병합으로 유지한다. 이번 변경의 복구는 해당 소스·fixture·계약 문서를 함께 되돌리는 리뷰된 PR로 수행할 수 있다. 실제 항목·파일 migration은 없으며, 후속 작업에서도 journal 삭제·재설치로 미확인 잠금을 초기화하지 않는다.
+
+## 2026-11-26 · G3 병합본 macOS 회귀
+
+[Issue #70](https://github.com/Kim-Ji-Won/AETHER/issues/70)에서 [PR #69](https://github.com/Kim-Ji-Won/AETHER/pull/69)의 squash `b15809841e7f3e9f6cc1f680bae920fe8fb8593a`를 검증했다. 유일한 parent는 `daeadb5110dd78f6d6abd677887fbc52bf0e5671`, 승인된 feature와 squash의 tree는 `27923f5d1fcb2ac28dc43d9e634ccb0c32df03f8`다. 테스트를 끝낸 뒤 이 증거 절을 추가했다.
+
+- 환경은 macOS 26.6 (25G5043d) arm64, macOS SDK 26.2, rustc/cargo 1.99.1이다. 기존 macOS Cargo manifest·build.rs를 그대로 사용했다. Issue 전용 worktree에 기존 캐시와 sidecar를 APFS 복사하고 별도의 target·Swift 모듈 캐시를 사용했다. `python3 -B scripts/prepare_node_sidecar.py --verify-only`로 고정 Node와 LICENSE를 대조했다.
+- 실행 전후 HEAD·Rust 소스 tree·추적 소스 diff와 이 문서의 세 소스 SHA-256을 대조했다. 소스 tree는 `27c5ffd1176b4bdf0af29f6732f5d15e27ce1a2b`, Cargo.lock SHA-256은 `9496fefeabe913a0fb282d12f648b0d1dbdef0ad0e169df1ee308340e9133f80`로 같았다.
+
+| Mac에서 실제 실행한 검사 | 관찰 결과 |
+|---|---|
+| 전체 Rust | **198/198 PASS**. Library 154, 앱 binary 42, compile-fail doctest 2. 실패·ignored 0 |
+| G3 집중 filter | **25/25 PASS**. 전체 library에도 같은 25개 포함 |
+| 기존 회귀 | Host·Synthetic 46, Provider 49, Credential/Consent 19, Transport 15, 앱 Runtime 23(기존 14 + G1 9) 모두 PASS. 전체 Rust의 부분집합 |
+| 기존 TLS loopback | **5/5 PASS**. 정상 스트림·peer close, redirect, 잘못된 hostname, 비신뢰 CA, cancel/close. Transport에 포함 |
+| macOS OS network-denied | **172/172 PASS**. loopback 제외 library 149 + Runtime binary 23. 실행 프로세스에 sandbox-exec로 네트워크를 차단 |
+| Frontend·Typecheck, packaged GUI | **NOT_RUN**. 앱/UI 소스 변경 없는 Rust 병합본 검증 |
+| 실제 filesystem durability·process lock·rollback 탐지, Keychain 부재 확인 | **NOT_RUN**. 메모리 journal의 commit·crash 모델만 검증 |
+
+저장소 루트에서 실행했다. 아래 두 변수는 이번 Cargo 출력에서 확인한 시험 실행 파일이다. Cargo offline은 dependency 다운로드를 막고, 별도의 sandbox-exec 실행이 OS 차단 증거를 제공한다.
+
+```sh
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --offline --locked
+LIB=apps/desktop/src-tauri/target/debug/deps/aether_desktop-8aa63b36155ccae4
+BIN=apps/desktop/src-tauri/target/debug/deps/aether_desktop-f2494fff42e599fb
+"$LIB" agent_text::provider::revocation::tests:: --quiet
+sandbox-exec -p '(version 1)(allow default)(deny network*)' "$LIB" --skip loopback --quiet
+sandbox-exec -p '(version 1)(allow default)(deny network*)' "$BIN" agent_runtime::tests --quiet
+```
+
+G3의 최초 쓰기 지연·실패 사례에서 admission 차단과 동의 폐기, cancel/abort·cleanup 진행, 취소 후 수락 delta 0, 기존 partial output과 terminal count 1을 확인했다. 양쪽 cleanup과 삭제 의도 commit 이전에는 삭제가 없었다. 메모리 crash·응답 유실·stale 결과·이전 instance의 ACK/승인이 잠금을 해제하지 못했고, operation·generation·ticket sequence 고갈 및 마지막 operation 후 등록 후보 거부도 통과했다. [회귀의 실제 assertions](../../apps/desktop/src-tauri/src/agent_text/provider/revocation/tests.rs)
+
+Linux의 TLS 포함 **153 PASS / 1 FAIL** 기록을 유지한다. `loopback_wrong_hostname_rejected_before_http`는 이 Mac에서 PASS였고 Linux에서는 변경 전 parent에서도 Python peer의 BrokenPipeError가 재현됐다. 이번에 transport 소스·시험·timeout을 수정하지 않았다. 로컬 TLS 이외의 Provider 호출이나 과금은 없었다.
+
+G1 앱 Host와 test-only G3 오프라인 기반은 main에 병합됐다. 제품은 `DisabledCredentials` 및 `ProviderDisabled`이며 G2 실제 OS 시험 **NOT_RUN**, 제품 G3 영속 journal 통합 **NOT_IMPLEMENTED**, 첫 실제 Provider 요청 **BLOCKED**다. P0 고정 앱·289개 및 64/14/48개 증거를 기존 기준과 대조했다. E5b/E5c PARTIAL, E5d ADR PROPOSED, 전역 Runtime 미선정이다.

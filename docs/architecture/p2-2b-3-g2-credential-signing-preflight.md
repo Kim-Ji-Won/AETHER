@@ -88,3 +88,28 @@ Host는 lock 안에서 연산 ID·세대·승인과 편집 가능 여부를 확�
 | 시험 소유자 | 잔존 항목 격리·reconciliation·최종 폐기 담당, 로컬 기록 보관 기한 및 별도 실행 승인 |
 
 현재 승인 가능한 결과는 이 시험 계획과 기존 산출물의 정적 관찰이다. 실제 G2 test-item 전체, secure entry, Keychain·실제 API Key·Provider·billing, 새 서명 빌드·공증·배포는 NOT_RUN이다.
+
+## 2026-11-26 · 이 Mac의 서명 준비 상태
+
+[검증 Issue #70](https://github.com/Kim-Ji-Won/AETHER/issues/70) · 병합 기준 `b15809841e7f3e9f6cc1f680bae920fe8fb8593a` · macOS 26.6 arm64, SDK 26.2. 위 11개 사례의 실제 G2 OS 시험은 모두 **NOT_RUN**이다. 사례 01을 시작할 수 있는 승인된 서명 앱·전용 주소·실행 승인은 아직 없다.
+
+- 기본 Tauri ID와 기존 해시로 식별한 P0/P2.1c 앱의 Info.plist를 대조했다. 두 앱 모두 `com.aether.firstwindow`, `aether-desktop`, 버전/build `0.1.0`이며 앞 절의 두 bundle digest가 일치했다. 기존 display/DR/XML entitlements/strict 명령을 재실행했다. 두 Host는 linker ad-hoc, Team 미설정, CDHash DR, entitlements 없음이다. 번들·Host strict는 리소스 봉인 오류로 **FAIL**했다. 동일 Node는 별도 공급자 Team, Apple anchor·leaf OU DR, runtime flag와 기존 6개 예외를 표시했고 개별 strict는 **PASS**했다. Node에는 Host용 group이 없다.
+- 현재 사용자의 기본 검색 범위에서 `security find-identity -p codesigning` 1회로 확인한 identity는 전체 **0**, 유효 **0**이다. `security find-certificate -a -c`는 Apple Development 및 Developer ID Application 이름으로만 제한했다. 두 필터 모두 exit 0·빈 결과였다(집계 및 빈 출력 확인 각 1회씩, 총 4회). 결과는 메모리에서 집계했고 원문을 저장하거나 공개하지 않았다. 다른 계정·검색 목록 밖의 identity 여부는 미확인이다.
+- 두 앱에 embedded provisioning profile이 없었다. Xcode UserData와 사용자·시스템 MobileDevice의 표준 provisioning profile 디렉터리 3곳은 존재하지 않았다. 확인 가능한 signer/profile 조합은 **0개**다. 서명 메타데이터 조회 외에 Credential 시험 항목 생성·조회·회전·삭제, 실제 API Key 접근, Provider 요청, 과금은 각각 **0회**다.
+
+아래의 모든 후보는 **PROPOSED**다. 실제 식별자·profile 대응표 및 향후 산출물 해시는 소유자가 확정한 뒤 제한된 로컬 기록에 둔다.
+
+| 결정 항목 | 실제 관찰한 상태 | 근거 | 추천 후보와 이유 | 사용자 결정 필요 여부 |
+|---|---|---|---|---|
+| 개발 Team·서명 주체 | 사용 가능한 개발 identity 미관찰 | codesigning 전체/유효 0 | 소유 Team의 Apple Development와 전용 개발 앱으로 검증 | 필요 · Team·서명 담당자 |
+| 시험·배포 Bundle ID | 기존 두 앱은 같은 P0 ID 사용 | Info.plist·Tauri·benchmark | 소유 namespace 내 시험 ID와 배포형 대조 ID를 따로 지정. P0 ID 보존 | 필요 · 두 ID |
+| Signer·profile·prefix·group | 확인 가능한 profile·대응 없음 | 표준 디렉터리 3곳·번들 2개 | 양 환경의 최종 Host에서 profile의 허용값과 effective entitlement를 대조. App ID prefix를 Team ID에서 유추하지 않음 | 필요 · 각 대응과 권한 |
+| 시험 주소 | OS 항목 연산 0 | 사례 01·07·08 | 환경별 app-private group, dev service `aether.g2.dev.test-item`, 배포형 대조 service 후보 `aether.g2.release-test.test-item`, 각 불투명 랜덤 slot 1개. group·service·account 정확 일치 | 필요 · 주소·소유자 예약 |
+| 시험값 | 실제 키 사용 0 | 기존 사례 01·06 | 비밀 아닌 `G2-fixture-v1`과 `G2-fixture-v2`로 등록·회전 구별 | 후보 일괄 승인 |
+| 잠금·사용자 동작 | OS 잠금 시험 미실행 | 기존 SDK 대조·사례 03·04 | data-protection, 비동기화, WhenUnlockedThisDeviceOnly. 등록·회전·폐기는 명시적 foreground, resolve는 단일 승인에 비대화식. 실패 시 lease 0 | 후보 일괄 승인 |
+| 허용 연산 | 제품 resolver 비활성 | b-1·사례 01–11 | 비밀 아닌 주소에 한정한 Add/CopyMatching/Update/Delete. 다른 owner는 교차 조회만, 자동 재시도·범위 확대 없음 | 필요 · 허용 연산·시간 |
+| 양성·음성·업데이트 앱 | 확인된 두 Host는 strict 실패, 승인된 대조 쌍 없음 | bundle hash·DR·entitlements | 별도 승인 후 dev owner와 같은 권한의 업데이트, 해당 group 없는 서명 앱 및 배포형 양성 대조 앱 준비. 각자 hash·profile·group 재확인 | 필요 · 산출물·준비 담당 |
+| 불확실성·폐기 | 실측 및 담당 지정 없음 | 사례 09–11 | 원 서명·group·slot의 owner가 양성 조회와 최종 부재 확인 담당. 잔존·결과 불명은 잠금·명시적 조정. 교차 조회의 not-found는 폐기 증거에서 제외 | 필요 · 폐기·인계 담당 |
+| 로컬 증거 | 조사 중 identity 목록·profile 원문 저장 없음 | 집계 전용 출력 | 시험 소유자·서명 담당자로 접근 제한. 대응표는 폐기·리뷰 완료까지 보관한 뒤 삭제하고 공개 요약만 유지. 미확인 항목은 폐기 담당에게 인계 | 필요 · 접근자·보관 종료 기준 |
+
+다음 승인 단위는 서명 준비와 **비밀 아닌** 전용 항목 시험이다. 개발 identity/profile이 준비되어도 사용자의 특정 산출물·주소 승인이 먼저 필요하다. G3 메모리 fixture의 통과는 서명 앱의 Keychain 부재 확인을 충족시키지 않는다. [이번 G3 Mac 결과](p2-2b-3-g3-offline-revocation.md)
