@@ -1,4 +1,6 @@
 //! Native Responses foundation. Production network dispatch and credentials are disabled.
+#[cfg(test)]
+mod cost_arithmetic;
 pub mod credential;
 pub mod consent;
 pub mod error;
